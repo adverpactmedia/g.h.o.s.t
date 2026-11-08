@@ -50,6 +50,10 @@ type Interaction = {
   }>;
 };
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
 function extractOutput(interaction: Interaction): string {
   if (typeof interaction.output_text === "string") {
     return interaction.output_text.trim();
@@ -65,15 +69,20 @@ function extractOutput(interaction: Interaction): string {
 }
 
 function validateAnalysis(value: unknown): value is AnalysisResult {
-  if (!value || typeof value !== "object") return false;
+  if (!isRecord(value)) return false;
 
-  const data = value as Record<string, any>;
+  const data = value;
   const meter = data.efficiencyMeter;
 
-  const validDraft = (draft: any) =>
-    draft &&
+  const validDraft = (draft: unknown): draft is FollowUpDraft =>
+    isRecord(draft) &&
     typeof draft.subject === "string" &&
     typeof draft.body === "string";
+
+  if (!isRecord(meter)) return false;
+
+  const velocity = meter.actionableVelocityPercent;
+  const noise = meter.corporateNoiseFilteredPercent;
 
   return (
     typeof data.summary === "string" &&
@@ -81,23 +90,24 @@ function validateAnalysis(value: unknown): value is AnalysisResult {
     typeof data.friction === "string" &&
     typeof data.alignment === "string" &&
     Array.isArray(data.decisions) &&
-    data.decisions.every((item: unknown) => typeof item === "string") &&
+    data.decisions.every((item) => typeof item === "string") &&
     Array.isArray(data.actionItems) &&
     data.actionItems.every(
-      (item: any) =>
-        item &&
+      (item) =>
+        isRecord(item) &&
         typeof item.task === "string" &&
         typeof item.owner === "string" &&
         typeof item.due === "string"
     ) &&
-    meter &&
     typeof meter.meetingVolume === "string" &&
-    Number.isInteger(meter.actionableVelocityPercent) &&
-    meter.actionableVelocityPercent >= 0 &&
-    meter.actionableVelocityPercent <= 100 &&
-    Number.isInteger(meter.corporateNoiseFilteredPercent) &&
-    meter.corporateNoiseFilteredPercent >= 0 &&
-    meter.corporateNoiseFilteredPercent <= 100 &&
+    typeof velocity === "number" &&
+    Number.isInteger(velocity) &&
+    velocity >= 0 &&
+    velocity <= 100 &&
+    typeof noise === "number" &&
+    Number.isInteger(noise) &&
+    noise >= 0 &&
+    noise <= 100 &&
     typeof meter.methodology === "string" &&
     validDraft(data.executiveFollowUp) &&
     validDraft(data.clientFollowUp) &&
@@ -251,7 +261,11 @@ export async function POST(request: Request) {
     const body = await response.text();
 
     if (!response.ok) {
-      console.error("GHOST interaction creation failed:", response.status, body.slice(0, 1500));
+      console.error(
+        "GHOST interaction creation failed:",
+        response.status,
+        body.slice(0, 1500)
+      );
 
       return NextResponse.json(
         { error: `Gemini could not start the analysis (HTTP ${response.status}).` },
@@ -262,7 +276,10 @@ export async function POST(request: Request) {
     const interaction = JSON.parse(body) as Interaction;
 
     if (!interaction.id) {
-      console.error("GHOST interaction returned no ID:", body.slice(0, 1500));
+      console.error(
+        "GHOST interaction returned no ID:",
+        body.slice(0, 1500)
+      );
 
       return NextResponse.json(
         { error: "Gemini did not return an analysis task ID." },
@@ -320,7 +337,11 @@ export async function GET(request: Request) {
     const body = await response.text();
 
     if (!response.ok) {
-      console.error("GHOST interaction polling failed:", response.status, body.slice(0, 1000));
+      console.error(
+        "GHOST interaction polling failed:",
+        response.status,
+        body.slice(0, 1000)
+      );
 
       return NextResponse.json(
         { error: `Could not check analysis status (HTTP ${response.status}).` },
@@ -341,7 +362,11 @@ export async function GET(request: Request) {
     }
 
     if (interaction.status !== "completed") {
-      console.error("GHOST interaction ended unsuccessfully:", interaction.status, interaction.error);
+      console.error(
+        "GHOST interaction ended unsuccessfully:",
+        interaction.status,
+        interaction.error
+      );
 
       return NextResponse.json(
         {
@@ -355,7 +380,10 @@ export async function GET(request: Request) {
     const raw = extractOutput(interaction);
 
     if (!raw) {
-      console.error("GHOST completed interaction had no text output:", body.slice(0, 2000));
+      console.error(
+        "GHOST completed interaction had no text output:",
+        body.slice(0, 2000)
+      );
 
       return NextResponse.json(
         { error: "Gemini completed the task but returned no usable Blueprint." },
@@ -373,7 +401,10 @@ export async function GET(request: Request) {
 
       analysis = JSON.parse(cleaned);
     } catch {
-      console.error("GHOST returned invalid JSON:", raw.slice(0, 1500));
+      console.error(
+        "GHOST returned invalid JSON:",
+        raw.slice(0, 1500)
+      );
 
       return NextResponse.json(
         { error: "Gemini returned an unreadable Blueprint. Please retry." },
