@@ -1,6 +1,9 @@
 
 "use client";
 
+import Image from "next/image";
+import ghostLogo from "../../Ghogo.jpg";
+
 import { useEffect, useRef, useState } from "react";
 import {
   ArrowDownToLine,
@@ -597,9 +600,22 @@ export default function GhostApp() {
   return (
     <main className="shell">
       <header className="topbar">
-        <a className="brand" href="#top" aria-label="Ghost home">
+        <a className="brand" href="#top" aria-label="G.H.O.S.T. home">
           <span className="brand-mark">
-            <AudioLines size={19} />
+            <Image
+              src={ghostLogo}
+              alt="G.H.O.S.T. logo"
+              width={34}
+              height={34}
+              priority
+              style={{
+                width: "34px",
+                height: "34px",
+                objectFit: "contain",
+                borderRadius: "9px",
+                display: "block",
+              }}
+            />
           </span>
 
           <span>
