@@ -4,8 +4,10 @@ type RateLimitEntry = {
   resetAt: number;
 };
 
+type RateLimitStore = Map<string, RateLimitEntry>;
+
 const globalStore = globalThis as typeof globalThis & {
-  __ghostRateLimitStore?: Map<string, RateLimitEntry>;
+  __ghostRateLimitStore?: RateLimitStore;
 };
 
 const store =
@@ -32,6 +34,7 @@ export function checkRateLimit(
   const now = Date.now();
   const windowMs = windowSeconds * 1000;
 
+  // Remove expired entries to prevent unlimited map growth.
   for (const [entryKey, entry] of store.entries()) {
     if (entry.resetAt <= now) {
       store.delete(entryKey);
