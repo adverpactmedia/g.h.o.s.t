@@ -1,4 +1,3 @@
-
 import { NextResponse } from "next/server";
 import { analyzeSchema, styleInstructions } from "@/lib/validation";
 import { checkRateLimit } from "@/lib/rate-limit";
@@ -230,16 +229,27 @@ export async function POST(request: Request) {
     );
   }
 
+  let body: unknown;
+
   try {
-    const parsed = analyzeSchema.safeParse(await request.json());
+    body = await request.json();
+  } catch {
+    return NextResponse.json(
+      { error: "The request body must contain valid JSON." },
+      { status: 400 }
+    );
+  }
 
-    if (!parsed.success) {
-      return NextResponse.json(
-        { error: parsed.error.issues[0]?.message || "Invalid transcript." },
-        { status: 400 }
-      );
-    }
+  const parsed = analyzeSchema.safeParse(body);
 
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: parsed.error.issues[0]?.message || "Invalid transcript." },
+      { status: 400 }
+    );
+  }
+
+  try {
     const { transcript, style, title } = parsed.data;
 
     const response = await fetch(API, {
@@ -258,13 +268,13 @@ export async function POST(request: Request) {
       signal: AbortSignal.timeout(25000),
     });
 
-    const body = await response.text();
+    const responseBody = await response.text();
 
     if (!response.ok) {
       console.error(
         "GHOST interaction creation failed:",
         response.status,
-        body.slice(0, 1500)
+        responseBody.slice(0, 1500)
       );
 
       return NextResponse.json(
@@ -273,12 +283,23 @@ export async function POST(request: Request) {
       );
     }
 
-    const interaction = JSON.parse(body) as Interaction;
+    let interaction: Interaction;
+
+    try {
+      interaction = JSON.parse(responseBody) as Interaction;
+    } catch {
+      console.error("GHOST received invalid JSON when starting analysis.");
+
+      return NextResponse.json(
+        { error: "Gemini returned an unreadable response." },
+        { status: 502 }
+      );
+    }
 
     if (!interaction.id) {
       console.error(
         "GHOST interaction returned no ID:",
-        body.slice(0, 1500)
+        responseBody.slice(0, 1500)
       );
 
       return NextResponse.json(
@@ -287,10 +308,13 @@ export async function POST(request: Request) {
       );
     }
 
-    return NextResponse.json({
-      interactionId: interaction.id,
-      status: interaction.status || "in_progress",
-    });
+    return NextResponse.json(
+      {
+        interactionId: interaction.id,
+        status: interaction.status || "in_progress",
+      },
+      { headers: { "Cache-Control": "no-store" } }
+    );
   } catch (error) {
     console.error("GHOST analysis start error:", error);
 
@@ -302,6 +326,21 @@ export async function POST(request: Request) {
 }
 
 export async function GET(request: Request) {
+  const limit = checkRateLimit(request, "analyze-poll", 180, 15 * 60);
+
+  if (!limit.allowed) {
+    return NextResponse.json(
+      { error: "Too many status checks. Please wait before trying again." },
+      {
+        status: 429,
+        headers: {
+          "Retry-After": String(limit.retryAfter),
+          "Cache-Control": "no-store",
+        },
+      }
+    );
+  }
+
   const apiKey = process.env.GEMINI_API_KEY;
 
   if (!apiKey) {
@@ -321,26 +360,23 @@ export async function GET(request: Request) {
   }
 
   try {
-    const response = await fetch(
-      `${API}/${encodeURIComponent(id)}`,
-      {
-        method: "GET",
-        headers: {
-          "x-goog-api-key": apiKey,
-          "Api-Revision": "2026-05-20",
-        },
-        cache: "no-store",
-        signal: AbortSignal.timeout(15000),
-      }
-    );
+    const response = await fetch(`${API}/${encodeURIComponent(id)}`, {
+      method: "GET",
+      headers: {
+        "x-goog-api-key": apiKey,
+        "Api-Revision": "2026-05-20",
+      },
+      cache: "no-store",
+      signal: AbortSignal.timeout(15000),
+    });
 
-    const body = await response.text();
+    const responseBody = await response.text();
 
     if (!response.ok) {
       console.error(
         "GHOST interaction polling failed:",
         response.status,
-        body.slice(0, 1000)
+        responseBody.slice(0, 1000)
       );
 
       return NextResponse.json(
@@ -349,7 +385,18 @@ export async function GET(request: Request) {
       );
     }
 
-    const interaction = JSON.parse(body) as Interaction;
+    let interaction: Interaction;
+
+    try {
+      interaction = JSON.parse(responseBody) as Interaction;
+    } catch {
+      console.error("GHOST received invalid JSON while checking analysis.");
+
+      return NextResponse.json(
+        { error: "Gemini returned an unreadable status response." },
+        { status: 502 }
+      );
+    }
 
     if (
       interaction.status === "in_progress" ||
@@ -371,9 +418,13 @@ export async function GET(request: Request) {
       return NextResponse.json(
         {
           status: "failed",
-          error: "Gemini could not complete the analysis. Your transcript is still available.",
+          error:
+            "Gemini could not complete the analysis. Your transcript is still available.",
         },
-        { status: 502 }
+        {
+          status: 502,
+          headers: { "Cache-Control": "no-store" },
+        }
       );
     }
 
@@ -382,7 +433,7 @@ export async function GET(request: Request) {
     if (!raw) {
       console.error(
         "GHOST completed interaction had no text output:",
-        body.slice(0, 2000)
+        responseBody.slice(0, 2000)
       );
 
       return NextResponse.json(
