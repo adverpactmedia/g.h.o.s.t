@@ -1,5 +1,7 @@
 # G.H.O.S.T. — Meeting Ghost Voice
 
+### Record only with everyone's knowledge and consent. Your saved history stays in this browser. Audio and transcripts are sent to Google's Gemini API to generate your brief. Do not submit confidential conversations unless you have permission and have reviewed the provider's data terms. ###
+
 **Your meetings leave. Their decisions don't.** G.H.O.S.T. turns a meeting recording or pasted transcript into a concise spoken recap, explicit decisions, action items and a follow-up draft in your preferred writing style.
 
 ## What it does
