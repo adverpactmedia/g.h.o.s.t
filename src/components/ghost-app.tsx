@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useEffect, useRef, useState } from "react";
@@ -1262,7 +1261,7 @@ export default function GhostApp() {
         </div>
 
         <p>
-          Record only with everyone's knowledge and consent.
+          Record only with everyone&apos;s knowledge and consent.
           Recording laws and workplace policies vary. Verify
           AI-generated decisions and commitments before acting.
         </p>
