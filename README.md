@@ -1,4 +1,10 @@
-# G.H.O.S.T. — Meeting Ghost Voice
+# G.H.O.S.T. 
+(Gather. Highlight. Organize. Summarize. Track.)
+
+*Meetings feel like "ghosts"—they happen, fade away, and leave no physical trace of what was actually agreed upon.
+
+*G.H.O.S.T. captures the "spirit" of the meeting and materializes it into permanent record. 
+
 
 ### Record only with everyone's knowledge and consent. Your saved history stays in this browser. Audio and transcripts are sent to Google's Gemini API to generate your brief. Do not submit confidential conversations unless you have permission and have reviewed the provider's data terms. ###
 
