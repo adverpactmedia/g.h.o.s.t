@@ -1,108 +1,285 @@
-# Product specification
+# Product Specification
 
 ## Vision
 
 Make every meeting end with a clear account of what happened and what happens next.
 
-## Target user
+## Product Identity
 
-Independent consultants, account managers, project leads and small-business professionals who attend several calls a week and personally own follow-through.
+**G.H.O.S.T.**
+
+Gather. Highlight. Organize. Summarize. Track.
+
+**Your meetings end. Their decisions don't.**
+
+G.H.O.S.T. turns a recorded conversation or transcript into a structured Meeting Blueprint.
+
+## Target User
+
+Independent consultants, account managers, project leads and small-business professionals who attend recurring meetings and personally manage follow-through.
+
+This target audience is a working hypothesis, not a validated customer segment.
 
 ## Problem
 
-Meeting participants rely on memory, scattered notes and hurried follow-up. Decisions blur into suggestions, action items lose owners, and the same conversation gets replayed mentally after the call.
+Meeting participants rely on memory, scattered notes and hurried follow-up.
 
-## Value proposition
+Decisions blur into suggestions. Action items lose owners. Deadlines are forgotten. Participants mentally replay conversations because they lack a clear record of what was agreed.
 
-G.H.O.S.T. converts one meeting into a spoken recap, explicit decisions, action items and a ready-to-edit follow-up draft in a chosen communication style.
+## Value Proposition
 
-## Core journeys
+G.H.O.S.T. converts a meeting recording or transcript into:
 
-### Capture a meeting
-1. Name the meeting.
-2. Initiate tab sharing and enable tab audio.
-3. See an unmistakable recording state and elapsed time.
-4. Stop recording or stop sharing.
-5. Receive transcription and analysis feedback.
+- A concise meeting summary.
+- Objective, friction and alignment.
+- Explicitly identified decisions.
+- Action items, owners and deadlines.
+- Estimated efficiency indicators.
+- Three ready-to-edit follow-up drafts.
 
-### Use an existing transcript
-1. Expand the transcript input.
-2. Paste transcript text.
-3. Choose a writing style in preferences.
-4. Generate the brief.
+The output is a reviewable Meeting Blueprint, not simply a transcript or generic summary.
 
-### Review and reuse
-1. Read or play the short recap.
-2. Verify decisions and action items.
-3. Copy the follow-up or export the full Markdown brief.
-4. Reopen a recent meeting or delete it.
+## Core User Journeys
 
-## MVP scope
+### 1. Record a Conversation
 
-- One-user browser experience, no account.
-- Tab-audio capture with explicit user action.
-- Transcript paste fallback.
-- AI transcription and structured analysis.
-- Spoken summary via browser speech synthesis.
-- Four follow-up styles.
-- Local meeting history, copy, Markdown export and delete.
+1. Enter a meeting title.
+2. Select microphone or meeting-tab capture.
+3. Confirm recording consent.
+4. Grant the required browser permission.
+5. Record the conversation.
+6. Stop recording.
+7. Send audio for transcription.
+8. Review the resulting transcript.
+9. Generate the Meeting Blueprint.
 
-## Out of scope
+### 2. Import a Transcript
 
-- Autonomous call bots and native Zoom/Meet/Teams integration.
-- Speaker identification, voice cloning, live captions, real-time coaching.
-- Team workspaces, sharing, comments, tasks sync, calendar/CRM/email integrations.
-- Hosted archive, auth, billing, subscription enforcement and admin console.
-- Regulated-industry compliance claims.
+1. Open transcript entry.
+2. Paste or edit transcript text.
+3. Select a follow-up writing style.
+4. Generate the Meeting Blueprint.
+5. Review the completed result.
 
-## Information architecture
+Transcript import currently means pasting text. It is not a general document-upload feature.
 
-Single workspace with two stages: Capture (left) and Aftermath (right). Preferences are a small contextual panel. Recent meetings appear below the current brief.
+### 3. Review and Reuse
 
-## Key screens and states
+1. Read the meeting summary.
+2. Review objective, friction and alignment.
+3. Verify identified decisions.
+4. Review action items, owners and deadlines.
+5. Review the efficiency indicators and methodology.
+6. Copy a follow-up draft.
+7. Export the Blueprint as Markdown.
+8. Optionally export the Blueprint with its original transcript.
+9. Reopen or delete saved meeting history.
 
-- Workspace default: capture form, standing-by indicator, useful empty state.
-- Recording: visible red state, timer, animated waveform, explicit stop action.
-- Processing: disabled capture action and progress copy.
-- Brief: spoken recap, decisions, action items, follow-up, export.
-- History: select or delete saved meeting.
-- Preferences: writing style selection.
-- Error: actionable message for unsupported capture, missing tab audio, API configuration, transcription and analysis failures.
+## Meeting Blueprint Structure
 
-## Data model
+### Meeting Summary
 
-`MeetingResult`: title, summary, spokenSummary, decisions[], actionItems[{task, owner, due}], followUp, transcript, createdAt. Stored in browser local storage under a versioned key. No user identity or server database exists in v1.
+A concise overview of the conversation.
 
-## Permissions and roles
+### Meeting Outcome
 
-There is one local user. The browser requires the user to grant tab/screen sharing. API endpoints require a server-side OpenAI key but are otherwise public in this version; this makes public production deployment vulnerable to API-cost abuse. Deploy behind access control or add authentication/rate limiting before opening a public paid service.
+- Objective
+- Friction
+- Alignment
 
-## Edge cases
+The output must distinguish agreement from unresolved discussion.
 
-- User cancels screen share: return to standing by with recovery guidance.
-- No tab audio track: stop capture and explain how to enable tab audio.
-- Browser lacks `getDisplayMedia`: offer transcript paste.
-- Recording exceeds 24 MB: stop processing and offer shorter recording/transcript paste.
-- API key missing: clear server configuration error.
-- Transcription or analysis fails: retain pasted transcript in the UI where available and offer retry path.
-- No decisions or action items: state that none were identified rather than inventing them.
-- Local storage quota is reached: notify user to export or remove old meetings.
+### Confirmed Decisions
 
-## Success metrics
+Only explicit agreements belong here.
 
-- Activation: percentage of first-time visitors who create a first brief.
-- Capture completion: percentage of started captures that produce a brief.
-- Time to value: time from meeting end to playable summary.
-- Repeat usage: meetings processed per active user per week.
-- Follow-up utility: percentage of briefs where the follow-up is copied/exported.
-- Retention: week-1 and week-4 repeat meeting processing.
-- Unit economics: transcription + analysis cost per meeting hour, gross margin by pricing model.
-- Trust: correction rate for decisions/actions, deletion requests and reported capture/consent confusion.
+Suggestions, possibilities and questions must not be represented as confirmed decisions.
+
+### Action Items
+
+Each action contains:
+
+- Task
+- Owner
+- Deadline
+
+Unknown owners must be marked as unassigned. Unknown deadlines must be marked as TBD.
+
+### Efficiency Meter
+
+- Transcript volume
+- Estimated actionable velocity
+- Estimated non-actionable content
+- Methodology and limitations
+
+These are estimates derived from transcript content. They are not measured meeting duration, verified time savings or audited productivity metrics.
+
+### Follow-up Drafts
+
+Three distinct drafts:
+
+1. Executive Blueprint: concise, direct and decision-oriented.
+2. Client-Facing Delight: professional and clear, with confirmation requests only when appropriate.
+3. Team-Hustle Pulse: natural internal communication with clear next steps.
+
+All drafts require human review before sending.
+
+## Current MVP Scope
+
+- Browser-based application.
+- Microphone recording.
+- Browser meeting-tab audio capture where supported.
+- Explicit recording consent confirmation.
+- Transcript paste and editing.
+- Google Gemini audio transcription.
+- Google Gemini background analysis.
+- Structured Meeting Blueprint.
+- Spoken summary using browser speech synthesis.
+- Four writing-style preferences.
+- Browser-local meeting history.
+- Copy follow-up drafts.
+- Markdown export.
+- Optional transcript-inclusive Markdown export.
+- Delete saved meetings.
+
+## Current Technical Architecture
+
+- Next.js application.
+- React client interface.
+- TypeScript.
+- Google Gemini API.
+- Server-side `GEMINI_API_KEY`.
+- Gemini Files API for temporary audio uploads.
+- Gemini Interactions API for background analysis.
+- Browser local storage for meeting history.
+- Vercel deployment.
+
+## Data Model
+
+The current MeetingResult includes:
+
+- title
+- summary
+- objective
+- friction
+- alignment
+- spokenSummary
+- decisions[]
+- actionItems[]
+  - task
+  - owner
+  - due
+- efficiencyMeter
+  - meetingVolume
+  - actionableVelocityPercent
+  - corporateNoiseFilteredPercent
+  - methodology
+- executiveFollowUp
+- clientFollowUp
+- teamFollowUp
+- followUp
+- transcript
+- createdAt
+
+Meeting history is stored locally in the browser. There is no hosted archive or account-based synchronization.
+
+## Security and Privacy
+
+- The Gemini API key must remain server-side.
+- Audio and transcript content are sent to Google Gemini for processing.
+- Temporary Gemini audio-file deletion is attempted after transcription.
+- Analysis interactions currently use `store: true`.
+- Browser-local history is not an encrypted cloud archive.
+- API routes currently lack user authentication.
+- Current rate limiting uses process-local memory and is not a complete serverless abuse-control solution.
+- Keep the deployment protected during the pilot.
+- Do not claim zero retention, guaranteed deletion, PIPEDA compliance or other certification without verification.
+
+## Known Limitations
+
+- Maximum audio upload size: 4 MB.
+- No long-recording chunking.
+- No autonomous meeting bots.
+- No direct cellular call interception.
+- No native Zoom, Meet or Teams integration.
+- No user accounts.
+- No cloud synchronization.
+- No team collaboration.
+- No task completion tracking.
+- No reminders or notifications.
+- No calendar, CRM or email integration.
+- No billing or subscription enforcement.
+- No verified PDF or DOCX export.
+- No guaranteed accuracy of AI-generated decisions or commitments.
+
+## Error States
+
+The application should provide clear recovery guidance for:
+
+- Missing API configuration.
+- Unsupported browser recording.
+- Denied microphone permission.
+- Cancelled screen or tab sharing.
+- Missing tab audio.
+- Empty or oversized recordings.
+- Unsupported audio formats.
+- Transcription failure.
+- Analysis failure.
+- Analysis timeout.
+- Invalid AI output.
+- Browser storage quota errors.
+
+Where possible, retain the user's transcript so analysis can be retried without repeating the recording.
+
+## Success Metrics
+
+### Activation
+
+Percentage of first-time users who generate their first Blueprint.
+
+### Capture Completion
+
+Percentage of started recordings that successfully produce a transcript.
+
+### Analysis Completion
+
+Percentage of submitted transcripts that successfully produce a Blueprint.
+
+### Time to Value
+
+Time between transcript submission and completed Blueprint.
+
+### Repeat Usage
+
+Meetings processed per active user per week.
+
+### Follow-up Utility
+
+Percentage of users who copy or export a follow-up draft.
+
+### Retention
+
+Week-one and week-four repeat usage.
+
+### Unit Economics
+
+Transcription and analysis cost per completed meeting.
+
+### Trust
+
+- Corrections to AI-generated decisions.
+- Corrections to action owners and deadlines.
+- Recording-consent confusion.
+- Processing failures.
+- Deletion requests.
 
 ## Roadmap
 
-1. Validate recurring use and pricing with a small professional cohort.
-2. Improve long-recording reliability, chunking and retries.
-3. Add optional encrypted cloud sync and account-based retention controls.
-4. Add platform integrations based on customer demand and provider constraints.
-5. Add paid entitlements and billing after unit economics are known.
+1. Complete protected pilot testing.
+2. Validate repeat usage with a small professional cohort.
+3. Improve recording and transcription reliability.
+4. Establish reliable authentication and usage limits.
+5. Measure actual API cost per completed meeting.
+6. Validate pricing and willingness to pay.
+7. Add billing only after identity, metering and entitlements are implemented.
+8. Consider cloud synchronization and integrations only when customer demand supports them.
