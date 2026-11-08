@@ -1,124 +1,188 @@
-# G.H.O.S.T. 
-(Gather. Highlight. Organize. Summarize. Track.)
 
-*Meetings feel like "ghosts"—they happen, fade away, and leave no physical trace of what was actually agreed upon.
+# G.H.O.S.T.
 
-*G.H.O.S.T. captures the "spirit" of the meeting and materializes it into permanent record. 
+**Gather. Highlight. Organize. Summarize. Track.**
 
+**Your meetings leave. Their decisions don't.**
 
-### Record only with everyone's knowledge and consent. Your saved history stays in this browser. Audio and transcripts are sent to Google's Gemini API to generate your brief. Do not submit confidential conversations unless you have permission and have reviewed the provider's data terms. ###
+G.H.O.S.T. turns a recorded conversation or pasted transcript into a structured Meeting Blueprint, so important decisions, action items and follow-ups are easier to find after the meeting ends.
 
-**Your meetings leave. Their decisions don't.** G.H.O.S.T. turns a meeting recording or pasted transcript into a concise spoken recap, explicit decisions, action items and a follow-up draft in your preferred writing style.
+## What G.H.O.S.T. produces
 
-## What it does
+Each Meeting Blueprint includes:
 
-G.H.O.S.T. is a local-first meeting companion. In the browser MVP, the user explicitly shares a meeting tab with tab audio enabled. The app records that shared audio, sends it to the server for transcription, asks the analysis model to produce a structured meeting brief, and reads the short recap aloud using the browser's speech synthesis. Users can also paste an existing transcript. Meeting history is stored in the current browser's local storage.
+- **Meeting Summary:** the objective, main friction and alignment.
+- **Confirmed Decisions:** explicit agreements identified in the conversation.
+- **Action Items:** tasks, owners and deadlines where stated.
+- **Efficiency Meter:** estimated measures based on transcript content, not verified meeting duration.
+- **Executive Blueprint:** a concise decision-focused follow-up draft.
+- **Client-Facing Delight:** a professional external follow-up draft.
+- **Team-Hustle Pulse:** an internal next-steps draft.
+- **Original Transcript:** retained with the saved meeting record.
 
-It is for consultants, independent professionals, managers and small teams who leave calls with more commitments than they can reliably remember.
+AI-generated content can be incomplete or incorrect. Review every decision, owner, deadline and follow-up before relying on or sending it.
 
-## Core workflow
+## How it works
 
 1. Enter a meeting title.
-2. Select **Share meeting tab & start** and choose the call tab with **Share tab audio** enabled.
-3. End the recording when the meeting is over (or stop sharing the tab).
-4. G.H.O.S.T. transcribes the audio and extracts summary, decisions, action items and a follow-up draft.
-5. The browser speaks the recap. Review, copy or export the brief.
+2. Choose microphone recording or shared-tab recording.
+3. Confirm that participants know recording is taking place.
+4. Start recording and grant the browser's requested permissions.
+5. Stop recording when the conversation ends.
+6. G.H.O.S.T. sends the audio for transcription.
+7. Review the transcript.
+8. Generate and review the Meeting Blueprint.
+9. Copy or export the result.
 
-A transcript can be pasted instead of recording. This is useful for platforms that provide their own transcript or where tab capture is unavailable.
+You can also paste an existing transcript instead of recording.
 
-## Features
+## Current capabilities
 
-- Explicit browser tab/audio capture using `getDisplayMedia` and `MediaRecorder`.
-- OpenAI speech transcription and structured meeting analysis.
-- Spoken summary using built-in browser speech synthesis.
-- Four follow-up writing styles: Direct, Warm, Executive and Casual.
-- Local meeting history, Markdown export, copy follow-up, and deletion.
-- Responsive dark interface and reduced-motion support.
+- Browser microphone recording.
+- Browser shared-tab audio recording where supported.
+- Transcript review before analysis.
+- Transcript import by pasting text.
+- Gemini-powered transcription and meeting analysis.
+- Four writing styles: Direct, Warm, Executive and Casual.
+- Saved meeting history in the current browser.
+- Spoken recap using browser speech synthesis.
+- Copy and Markdown export.
+- Export of the Blueprint with or without the original transcript.
+- Delete saved meeting records from the current browser.
 
-## Screenshots
+## What it does not do
 
-Run the app locally and capture the landing/workspace at desktop and mobile widths. Store approved screenshots in `docs/screenshots/` and link them here. No customer screenshots or testimonials are included by default.
+The current version does not:
+
+- Automatically join Zoom, Google Meet, Microsoft Teams or other meetings.
+- Intercept phone calls or record every application on a device.
+- Guarantee that every speaker or commitment is identified correctly.
+- Send follow-up emails.
+- Create calendar events or reminders.
+- Track whether assigned tasks are completed.
+- Sync meeting history between devices.
+- Provide user accounts or team workspaces.
+- Provide subscription billing.
+
+Do not assume that a task is being tracked after the Blueprint is generated. The current product creates a record and follow-up drafts; it does not manage task completion.
+
+## Recording and privacy
+
+**Record only with the knowledge and consent required from everyone involved.**
+
+G.H.O.S.T. sends recorded audio to Google's Gemini API for transcription. The resulting transcript is sent to Gemini for analysis.
+
+Meeting history is stored in the current browser's local storage. It is not a cloud-synced archive. Clearing browser storage may permanently remove saved meeting records.
+
+The transcription endpoint attempts to delete the temporary uploaded Gemini audio file after processing. The analysis endpoint uses Gemini background interactions with storage enabled. Do not interpret this as a zero-retention guarantee.
+
+Do not submit confidential, regulated or sensitive conversations unless you have permission and have reviewed the applicable provider terms and your organization's requirements.
+
+## Technical requirements
+
+- Node.js 20.9 or newer
+- npm
+- A Google Gemini API key
+- A modern browser
+- HTTPS in production
+
+For the most reliable first test of shared-tab audio, use a current desktop Chromium-based browser. Microphone and tab-audio support varies by browser and operating system.
 
 ## Local setup
-
-Requirements: Node.js 20.9+ and npm.
 
 ```bash
 npm install
 cp .env.example .env.local
-# Add OPENAI_API_KEY to .env.local
+```
+
+Add your Gemini API key to `.env.local`:
+
+```bash
+GEMINI_API_KEY=your_gemini_api_key
+```
+
+Start the development server:
+
+```bash
 npm run dev
 ```
 
-Open http://localhost:3000. Use a recent Chromium-based browser for the most reliable tab-audio capture. The application must be served from localhost or HTTPS for screen capture permissions.
+Open http://localhost:3000.
+
+Never commit `.env.local`. Never expose the API key using a `NEXT_PUBLIC_` variable.
 
 ## Environment variables
 
 | Variable | Required | Purpose |
 |---|---:|---|
-| `OPENAI_API_KEY` | Yes for AI features | Server-side key for transcription and analysis. Never expose it as `NEXT_PUBLIC_*`. |
-| `OPENAI_TRANSCRIPTION_MODEL` | No | Defaults to `whisper-1`. |
-| `OPENAI_ANALYSIS_MODEL` | No | Defaults to `gpt-4o-mini`. |
+| `GEMINI_API_KEY` | Yes | Server-side credential for transcription and meeting analysis. |
 
-If the key is missing, the interface remains usable but transcription and analysis endpoints return a clear configuration error.
+## AI services
 
-## Data, authentication and payments
+The current application uses Google's Gemini API:
 
-Version 1 does not require an account, hosted database, or payment provider. Meeting history and the writing-style preference live in the browser only. Clearing browser storage deletes that history. There is no cross-device sync, team workspace, hosted transcript archive, user identity, or billing entitlement in this version.
+- Audio transcription: `gemini-3.5-transcribe`
+- Meeting analysis: `gemini-3.8-flash` through the Interactions API
 
-Payments are intentionally not wired into the first build. The proposed $15–29 meeting pack and $39/month unlimited pricing are hypotheses, not validated demand or an implemented checkout. Validate willingness to pay and real usage before introducing billing. A production paid release should add authenticated accounts, server-side entitlements, usage metering, deletion/export controls, and Stripe Checkout plus verified webhooks.
+Audio uploads are limited to 4 MB.
 
-## Database setup
+Meeting analysis runs as a background interaction. The application polls for completion rather than holding one long-running request open.
 
-No database is required. Local storage is used for saved briefs. This is a deliberate MVP trade-off, not a claim that browser storage is suitable for a multi-user SaaS archive.
+Actual model availability, account permissions, quotas and billing depend on the configured Google AI account.
+
+## Data storage
+
+No application database is currently required.
+
+Saved meetings are stored in browser local storage. This means:
+
+- Records are available only in the browser profile where they were saved.
+- Records do not automatically appear on another device.
+- Clearing site data can remove saved records.
+- Browser storage is not a secure document archive.
+- Users should export important records and store them appropriately.
 
 ## Deployment
 
-Deploy as a Next.js project to Vercel or another Node-compatible host. Set `OPENAI_API_KEY`, `OPENAI_TRANSCRIPTION_MODEL` (optional), and `OPENAI_ANALYSIS_MODEL` (optional) in server environment variables. Redeploy after changing environment variables.
+G.H.O.S.T. is a Next.js application and is deployed through Vercel.
 
-See [DEPLOYMENT.md](./DEPLOYMENT.md) for operational details and limitations.
+Add `GEMINI_API_KEY` to the Vercel Production environment variables and redeploy after changing it.
 
-## Project structure
+See [DEPLOYMENT.md](./DEPLOYMENT.md) for deployment steps, operational limitations and verification checks.
 
-```text
-src/app/                 Next.js routes, page, global styles
-src/app/api/transcribe/  Audio transcription endpoint
-src/app/api/analyze/     Structured meeting analysis endpoint
-src/components/          Main product interface
-src/lib/                 Validation and formatting helpers
-src/types/               Shared domain types
-tests/                   Unit tests
-public/                  Static assets
-```
+## Security and launch limitations
 
-## Known limitations
+This is an early MVP, not a hardened public SaaS.
 
-- This is a browser capture workflow, not a bot that autonomously joins Zoom, Meet or Teams.
-- Tab audio capture depends on browser support and the user's explicit sharing selection. Some browsers/platforms may not provide audio.
-- One uploaded recording is limited to 24 MB. Very long meetings may exceed this limit.
-- No speaker diarization or guaranteed speaker identity is provided. Do not infer who owns an action unless the transcript supports it.
-- Browser speech synthesis voices vary by operating system and browser; this is not a cloned voice.
-- No hosted storage, account system, team sharing, subscription enforcement, calendar integration, or CRM/email sending.
-- AI output can omit, misattribute or misunderstand statements. Users must verify decisions and commitments before sending follow-ups.
-- Recording laws, workplace policies and consent requirements vary. The user is responsible for obtaining all required consent.
+- API endpoints do not currently require user authentication.
+- The current rate limiter uses process memory and is not reliable distributed abuse protection.
+- Unrestricted public access could allow other visitors to generate Gemini API usage.
+- There are no user-level quotas or billing controls.
 
-## Roadmap
-
-1. Validate repeated use and willingness to pay with a narrow professional cohort.
-2. Add reliable long-meeting chunking and transcript recovery.
-3. Add user accounts, encrypted cloud sync and retention/deletion controls only if users require cross-device access.
-4. Add calendar and meeting-platform integrations where platform APIs and permissions support them.
-5. Add paid meeting packs/subscriptions after usage and costs are measured.
+Keep deployment protection enabled for initial testing. Do not expose the application to unrestricted public traffic until appropriate access control and reliable usage limits are implemented.
 
 ## Quality checks
+
+Run the following commands before deployment:
 
 ```bash
 npm run typecheck
 npm run lint
 npm test
-npx playwright install chromium
-npx playwright test
 npm run build
 ```
 
-The Playwright smoke test checks the first-run capture interface and transcript-import path. It does not exercise live audio capture or external AI calls; those require a real browser permission prompt and a configured API key.
+The automated tests do not replace real browser testing. Verify transcript import, AI analysis, recording permissions, transcription, saving, export and error handling on the deployed application.
+
+## Project structure
+
+```text
+src/app/                 Next.js pages, styles and API routes
+src/app/api/transcribe/  Audio transcription endpoint
+src/app/api/analyze/     Meeting analysis endpoint
+src/components/          Main G.H.O.S.T. interface
+src/lib/                 Validation, formatting and rate limiting
+src/types/               Shared meeting types
+tests/                   Automated tests
+public/                  Static assets
+```
