@@ -19,29 +19,18 @@ export type FollowUpDraft = {
 
 export type MeetingResult = {
   title: string;
-
-  // Core summary
   summary: string;
   objective: string;
   friction: string;
   alignment: string;
   spokenSummary: string;
-
-  // Decisions and execution
   decisions: string[];
   actionItems: ActionItem[];
-
-  // Estimated meeting efficiency
   efficiencyMeter: EfficiencyMeter;
-
-  // Separate communication drafts
   executiveFollowUp: FollowUpDraft;
   clientFollowUp: FollowUpDraft;
-
-  // Backward-compatible field for the existing interface
+  teamFollowUp: FollowUpDraft;
   followUp: string;
-
-  // Source material and metadata
   transcript: string;
   createdAt: string;
 };
