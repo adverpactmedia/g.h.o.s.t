@@ -1,3 +1,4 @@
+
 "use client";
 
 import Image from "next/image";
@@ -16,7 +17,6 @@ import {
   Play,
   Plus,
   Radio,
-  Settings2,
   ShieldCheck,
   Square,
   Trash2,
@@ -24,19 +24,26 @@ import {
   X,
 } from "lucide-react";
 import type { MeetingResult, VoiceStyle } from "@/types/meeting";
-import { safeFilename } from "@/lib/format";
+import { makeSpokenSummary, safeFilename } from "@/lib/format";
 
 const STORE = "ghost-voice-meetings-v1";
-const STYLE_STORE = "ghost-voice-style-v1";
 const MAX_AUDIO_SIZE = 4 * 1024 * 1024;
 
 type CaptureMode = "microphone" | "tab";
-type RecordingStatus =
-  | "idle"
-  | "recording"
-  | "paused"
-  | "processing"
-  | "error";
+type Status = "idle" | "recording" | "paused" | "processing" | "error";
+
+type AnalysisPayload = {
+  summary: string;
+  objective: string;
+  friction: string;
+  alignment: string;
+  decisions: string[];
+  actionItems: MeetingResult["actionItems"];
+  efficiencyMeter: MeetingResult["efficiencyMeter"];
+  executiveFollowUp: MeetingResult["executiveFollowUp"];
+  clientFollowUp: MeetingResult["clientFollowUp"];
+  teamFollowUp: MeetingResult["teamFollowUp"];
+};
 
 const styleNames: Record<VoiceStyle, string> = {
   direct: "Direct",
@@ -47,52 +54,35 @@ const styleNames: Record<VoiceStyle, string> = {
 
 export default function GhostApp() {
   const [meetings, setMeetings] = useState<MeetingResult[]>([]);
-  const [hydrated, setHydrated] = useState(false);
   const [active, setActive] = useState<MeetingResult | null>(null);
+  const [hydrated, setHydrated] = useState(false);
 
   const [title, setTitle] = useState("Quick conversation");
   const [style, setStyle] = useState<VoiceStyle>("direct");
   const [mode, setMode] = useState<CaptureMode>("microphone");
-  const [status, setStatus] = useState<RecordingStatus>("idle");
+  const [status, setStatus] = useState<Status>("idle");
 
-  const [elapsed, setElapsed] = useState(0);
   const [transcript, setTranscript] = useState("");
+  const [manualOpen, setManualOpen] = useState(false);
+  const [consent, setConsent] = useState(false);
+  const [elapsed, setElapsed] = useState(0);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
-
-  const [settingsOpen, setSettingsOpen] = useState(false);
-  const [manualOpen, setManualOpen] = useState(false);
   const [playing, setPlaying] = useState(false);
 
   const recorder = useRef<MediaRecorder | null>(null);
-  const stream = useRef<MediaStream | null>(null);
+  const captureStream = useRef<MediaStream | null>(null);
   const chunks = useRef<Blob[]>([]);
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
   const exceededSize = useRef(false);
 
-  const busy =
-    status === "recording" ||
-    status === "paused" ||
-    status === "processing";
+  const busy = status === "processing";
+  const recording = status === "recording" || status === "paused";
 
   useEffect(() => {
     try {
       const saved = localStorage.getItem(STORE);
-
-      if (saved) {
-        setMeetings(JSON.parse(saved) as MeetingResult[]);
-      }
-
-      const savedStyle = localStorage.getItem(STYLE_STORE);
-
-      if (
-        savedStyle === "direct" ||
-        savedStyle === "warm" ||
-        savedStyle === "executive" ||
-        savedStyle === "casual"
-      ) {
-        setStyle(savedStyle);
-      }
+      if (saved) setMeetings(JSON.parse(saved) as MeetingResult[]);
     } catch {
       setNotice("Saved meeting history could not be loaded.");
     } finally {
@@ -106,40 +96,21 @@ export default function GhostApp() {
     try {
       localStorage.setItem(STORE, JSON.stringify(meetings));
     } catch {
-      setNotice(
-        "Browser storage is full. Export or delete older meetings."
-      );
+      setNotice("Browser storage is full. Export or delete older meetings.");
     }
   }, [meetings, hydrated]);
 
   useEffect(() => {
-    if (!hydrated) return;
-
-    try {
-      localStorage.setItem(STYLE_STORE, style);
-    } catch {
-      setNotice("Your preferences could not be saved.");
-    }
-  }, [style, hydrated]);
-
-  useEffect(() => {
     return () => {
       if (timer.current) clearInterval(timer.current);
-
-      if (recorder.current?.state !== "inactive") {
-        recorder.current?.stop();
+      if (recorder.current && recorder.current.state !== "inactive") {
+        recorder.current.onstop = null;
+        recorder.current.stop();
       }
-
-      stream.current?.getTracks().forEach((track) => track.stop());
+      captureStream.current?.getTracks().forEach((track) => track.stop());
       window.speechSynthesis?.cancel();
     };
   }, []);
-
-  function formatTime(seconds: number) {
-    return `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(
-      seconds % 60
-    ).padStart(2, "0")}`;
-  }
 
   function stopTimer() {
     if (timer.current) {
@@ -150,46 +121,36 @@ export default function GhostApp() {
 
   function startTimer() {
     stopTimer();
-
     timer.current = setInterval(() => {
-      setElapsed((previous) => previous + 1);
+      setElapsed((value) => value + 1);
     }, 1000);
   }
 
-  function getAudioMimeType() {
-    const candidates = [
-      "audio/webm;codecs=opus",
-      "audio/mp4",
-      "audio/webm",
-    ];
-
-    return (
-      candidates.find((type) => MediaRecorder.isTypeSupported(type)) || ""
-    );
+  function formatTime(seconds: number) {
+    return `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(
+      seconds % 60
+    ).padStart(2, "0")}`;
   }
 
   async function startRecording() {
     setError("");
     setNotice("");
 
-    if (!navigator.mediaDevices || !window.MediaRecorder) {
-      setError(
-        "Audio recording is not supported by this browser. Try the latest Chrome or use transcript import."
-      );
+    if (!consent) {
+      setError("Confirm that everyone involved knows recording is taking place.");
       return;
     }
 
-    let capture: MediaStream | null = null;
+    if (!navigator.mediaDevices || !window.MediaRecorder) {
+      setError("Recording is unavailable in this browser. Use transcript import.");
+      return;
+    }
+
+    let stream: MediaStream | null = null;
 
     try {
       if (mode === "microphone") {
-        if (!navigator.mediaDevices.getUserMedia) {
-          throw new Error(
-            "Microphone recording is not supported by this browser."
-          );
-        }
-
-        capture = await navigator.mediaDevices.getUserMedia({
+        stream = await navigator.mediaDevices.getUserMedia({
           audio: {
             echoCancellation: true,
             noiseSuppression: true,
@@ -198,41 +159,34 @@ export default function GhostApp() {
         });
       } else {
         if (!navigator.mediaDevices.getDisplayMedia) {
-          throw new Error(
-            "Tab recording is unavailable in this browser. Try microphone capture instead."
-          );
+          throw new Error("Tab audio capture is not supported by this browser.");
         }
 
-        capture = await navigator.mediaDevices.getDisplayMedia({
+        stream = await navigator.mediaDevices.getDisplayMedia({
           video: true,
           audio: true,
         });
 
-        if (!capture.getAudioTracks().length) {
-          capture.getTracks().forEach((track) => track.stop());
-          capture = null;
-
-          throw new Error(
-            "No tab audio was received. Select your meeting tab and enable Share tab audio."
-          );
+        if (!stream.getAudioTracks().length) {
+          throw new Error("No tab audio received. Enable Share tab audio.");
         }
       }
 
-      const audioTracks = capture.getAudioTracks();
-
-      if (!audioTracks.length) {
-        throw new Error("No microphone or audio input was detected.");
-      }
-
-      const audioStream = new MediaStream(audioTracks);
-      const mime = getAudioMimeType();
+      const audioStream = new MediaStream(stream.getAudioTracks());
+      const candidates = [
+        "audio/webm;codecs=opus",
+        "audio/mp4",
+        "audio/webm",
+      ];
+      const mime = candidates.find((item) => MediaRecorder.isTypeSupported(item));
 
       const mediaRecorder = new MediaRecorder(
         audioStream,
         mime ? { mimeType: mime } : undefined
       );
 
-      stream.current = capture;
+      captureStream.current = stream;
+      recorder.current = mediaRecorder;
       chunks.current = [];
       exceededSize.current = false;
 
@@ -241,91 +195,63 @@ export default function GhostApp() {
 
         chunks.current.push(event.data);
 
-        const currentSize = chunks.current.reduce(
-          (total, chunk) => total + chunk.size,
+        const total = chunks.current.reduce(
+          (sum, chunk) => sum + chunk.size,
           0
         );
 
-        if (currentSize > MAX_AUDIO_SIZE) {
+        if (total > MAX_AUDIO_SIZE) {
           exceededSize.current = true;
-
-          setError(
-            "The recording has reached the 4 MB upload limit. End the recording and use a shorter session."
-          );
-
-          if (mediaRecorder.state !== "inactive") {
-            mediaRecorder.stop();
-          }
+          setError("Recording reached the 4 MB upload limit.");
+          if (mediaRecorder.state !== "inactive") mediaRecorder.stop();
         }
       };
 
       mediaRecorder.onerror = () => {
-        setError("The browser encountered a recording error.");
         setStatus("error");
+        setError("The browser encountered a recording error.");
       };
 
       mediaRecorder.onstop = async () => {
         stopTimer();
-
-        capture?.getTracks().forEach((track) => track.stop());
-
-        stream.current = null;
+        stream?.getTracks().forEach((track) => track.stop());
+        captureStream.current = null;
         recorder.current = null;
 
         if (exceededSize.current) {
-          setStatus("error");
           chunks.current = [];
+          setStatus("error");
           return;
         }
 
-        const audioType = mediaRecorder.mimeType || mime || "audio/webm";
-
         const blob = new Blob(chunks.current, {
-          type: audioType,
+          type: mediaRecorder.mimeType || mime || "audio/webm",
         });
 
         chunks.current = [];
-
         await processAudio(blob);
       };
 
       if (mode === "tab") {
-        capture.getVideoTracks()[0]?.addEventListener("ended", () => {
-          if (mediaRecorder.state !== "inactive") {
-            setStatus("processing");
-            mediaRecorder.stop();
-          }
+        stream.getVideoTracks()[0]?.addEventListener("ended", () => {
+          if (mediaRecorder.state !== "inactive") mediaRecorder.stop();
         });
       }
 
-      recorder.current = mediaRecorder;
       mediaRecorder.start(1000);
-
       setElapsed(0);
       setStatus("recording");
       startTimer();
-
-      setNotice(
-        mode === "microphone"
-          ? "Microphone active. G.H.O.S.T. is listening."
-          : "Meeting audio capture started."
-      );
+      setNotice("Recording started.");
     } catch (err) {
-      capture?.getTracks().forEach((track) => track.stop());
-      stream.current = null;
-
-      const message =
+      stream?.getTracks().forEach((track) => track.stop());
+      captureStream.current = null;
+      setStatus("error");
+      setError(
         err instanceof Error
           ? err.message
-          : "Recording could not be started.";
-
-      setError(
-        message.includes("NotAllowedError")
-          ? "Permission was denied. Allow microphone or screen access in your browser settings."
-          : message
+          : "Recording could not be started."
       );
-
-      setStatus("error");
     }
   }
 
@@ -348,10 +274,7 @@ export default function GhostApp() {
   }
 
   function stopRecording() {
-    if (
-      recorder.current &&
-      recorder.current.state !== "inactive"
-    ) {
+    if (recorder.current && recorder.current.state !== "inactive") {
       stopTimer();
       setStatus("processing");
       recorder.current.stop();
@@ -359,19 +282,9 @@ export default function GhostApp() {
   }
 
   async function processAudio(blob: Blob) {
-    if (blob.size < 1000) {
+    if (blob.size < 1000 || blob.size > MAX_AUDIO_SIZE) {
       setStatus("error");
-      setError(
-        "The recording was empty or too short. Try recording again."
-      );
-      return;
-    }
-
-    if (blob.size > MAX_AUDIO_SIZE) {
-      setStatus("error");
-      setError(
-        "This recording exceeds the 4 MB upload limit. Use a shorter recording."
-      );
+      setError("The recording is empty or exceeds the 4 MB upload limit.");
       return;
     }
 
@@ -382,7 +295,6 @@ export default function GhostApp() {
     try {
       const extension = blob.type.includes("mp4") ? "mp4" : "webm";
       const form = new FormData();
-
       form.append("audio", blob, `ghost-recording.${extension}`);
 
       const response = await fetch("/api/transcribe", {
@@ -402,210 +314,144 @@ export default function GhostApp() {
       setTranscript(result.transcript);
       setManualOpen(true);
       setStatus("idle");
-      setNotice(
-        "Transcript ready. Review it before creating your brief."
-      );
+      setNotice("Transcript ready. Review it before creating your Blueprint.");
     } catch (err) {
       setStatus("error");
       setError(
-        err instanceof Error
-          ? err.message
-          : "The recording could not be processed."
+        err instanceof Error ? err.message : "The recording could not be processed."
       );
     }
   }
 
   async function analyze(text: string) {
-    if (text.trim().length < 30) {
+    const cleanTranscript = text.trim();
+
+    if (cleanTranscript.length < 30) {
       setStatus("error");
-      setError("Add a longer transcript before creating a brief.");
+      setError("Add a longer transcript before creating a Blueprint.");
       return;
     }
 
     setStatus("processing");
     setError("");
+    setNotice("Starting your meeting analysis...");
 
     try {
-      const response = await fetch("/api/analyze", {
+      const startResponse = await fetch("/api/analyze", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
+        cache: "no-store",
         body: JSON.stringify({
-          transcript: text,
+          transcript: cleanTranscript,
           style,
-          title,
+          title: title.trim() || "Untitled meeting",
         }),
       });
 
-      const result = (await response.json()) as MeetingResult & {
+      const startResult = (await startResponse.json()) as {
+        interactionId?: string;
         error?: string;
       };
 
-      if (!response.ok) {
-        throw new Error(result.error || "Meeting analysis failed.");
+      if (!startResponse.ok || !startResult.interactionId) {
+        throw new Error(
+          startResult.error || "G.H.O.S.T. could not start the analysis."
+        );
       }
+
+      let analysis: AnalysisPayload | null = null;
+      const maxAttempts = 120;
+
+      for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+        await new Promise((resolve) => window.setTimeout(resolve, 2000));
+
+        const pollResponse = await fetch(
+          `/api/analyze?id=${encodeURIComponent(startResult.interactionId)}`,
+          { method: "GET", cache: "no-store" }
+        );
+
+        const pollResult = (await pollResponse.json()) as {
+          status?: "processing" | "completed" | "failed";
+          analysis?: AnalysisPayload;
+          error?: string;
+        };
+
+        if (!pollResponse.ok || pollResult.status === "failed") {
+          throw new Error(
+            pollResult.error || "G.H.O.S.T. could not complete the analysis."
+          );
+        }
+
+        if (pollResult.status === "completed" && pollResult.analysis) {
+          analysis = pollResult.analysis;
+          break;
+        }
+
+        if (attempt > 0 && attempt % 10 === 0) {
+          setNotice("Analysis is still running...");
+        }
+      }
+
+      if (!analysis) {
+        throw new Error(
+          "Analysis timed out. Your transcript is still available. Please retry."
+        );
+      }
+
+      const result: MeetingResult = {
+        title: title.trim() || "Untitled meeting",
+        summary: analysis.summary,
+        objective: analysis.objective,
+        friction: analysis.friction,
+        alignment: analysis.alignment,
+        spokenSummary: "",
+        decisions: analysis.decisions,
+        actionItems: analysis.actionItems,
+        efficiencyMeter: analysis.efficiencyMeter,
+        executiveFollowUp: analysis.executiveFollowUp,
+        clientFollowUp: analysis.clientFollowUp,
+        teamFollowUp: analysis.teamFollowUp,
+        followUp: analysis.clientFollowUp.body,
+        transcript: cleanTranscript,
+        createdAt: new Date().toISOString(),
+      };
+
+      result.spokenSummary = makeSpokenSummary(result);
 
       setActive(result);
-
-      setMeetings((previous) => [
-        result,
-        ...previous.filter(
-          (item) => item.createdAt !== result.createdAt
-        ),
-      ]);
-
+      setMeetings((previous) => [result, ...previous]);
       setStatus("idle");
-      setNotice("Your meeting blueprint is ready.");
+      setNotice("Your meeting Blueprint is ready.");
 
-      if (result.spokenSummary) {
-        speak(result.spokenSummary);
-      }
+      if (result.spokenSummary) speak(result.spokenSummary);
     } catch (err) {
       setStatus("error");
       setError(
         err instanceof Error
           ? err.message
-          : "Meeting analysis failed."
+          : "Meeting analysis failed. Your transcript is still available."
       );
     }
   }
 
   function speak(text: string) {
     if (!window.speechSynthesis) {
-      setNotice(
-        "Speech playback is unavailable. Read your brief below."
-      );
+      setNotice("Speech playback is unavailable in this browser.");
       return;
     }
 
     window.speechSynthesis.cancel();
-
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.rate = 1.02;
-
     utterance.onstart = () => setPlaying(true);
     utterance.onend = () => setPlaying(false);
     utterance.onerror = () => setPlaying(false);
-
     window.speechSynthesis.speak(utterance);
   }
 
   function stopSpeech() {
     window.speechSynthesis?.cancel();
     setPlaying(false);
-  }
-
-  function exportMeeting(
-    item: MeetingResult,
-    includeTranscript = false
-  ) {
-    const decisions = Array.isArray(item.decisions)
-      ? item.decisions
-      : [];
-
-    const actions = Array.isArray(item.actionItems)
-      ? item.actionItems
-      : [];
-
-    const executive = item.executiveFollowUp;
-    const client = item.clientFollowUp;
-    const team = item.teamFollowUp;
-    const meter = item.efficiencyMeter;
-
-    const lines = [
-      "# G.H.O.S.T. Meeting Blueprint",
-      "",
-      `# ${item.title || "Untitled meeting"}`,
-      "",
-      new Date(item.createdAt).toLocaleString(),
-      "",
-      "## 1. Meeting Summary",
-      "",
-      item.summary || "Not available.",
-      "",
-      "### Objective",
-      item.objective || "Not available in this saved meeting.",
-      "",
-      "### Friction",
-      item.friction || "Not available in this saved meeting.",
-      "",
-      "### Alignment",
-      item.alignment || "Not available in this saved meeting.",
-      "",
-      "## 2. Confirmed Decisions",
-      "",
-      ...(decisions.length
-        ? decisions.map((decision) => `- ${decision}`)
-        : ["- No confirmed decisions identified."]),
-      "",
-      "## 3. Action Items",
-      "",
-      ...(actions.length
-        ? actions.map(
-            (action) =>
-              `- [ ] ${action.task} | Owner: ${action.owner} | Due: ${action.due}`
-          )
-        : ["- No clear action items identified."]),
-      "",
-      "## 4. G.H.O.S.T. Efficiency Meter",
-      "",
-      meter
-        ? `- Transcript volume: ${meter.meetingVolume}`
-        : "- Transcript volume: Not available.",
-      meter
-        ? `- Estimated actionable velocity: ${meter.actionableVelocityPercent}%`
-        : "- Estimated actionable velocity: Not available.",
-      meter
-        ? `- Estimated non-actionable content: ${meter.corporateNoiseFilteredPercent}%`
-        : "- Estimated non-actionable content: Not available.",
-      "",
-      meter?.methodology || "",
-      "",
-      "## 5. Ghost-Draft Follow-ups",
-      "",
-      "### Executive Blueprint",
-      executive?.subject ? `Subject: ${executive.subject}` : "",
-      executive?.body || "Not available in this saved meeting.",
-      "",
-      "### Client-Facing Delight",
-      client?.subject ? `Subject: ${client.subject}` : "",
-      client?.body || item.followUp || "Not available in this saved meeting.",
-      "",
-      "### Team-Hustle Pulse",
-      team?.subject ? `Subject: ${team.subject}` : "",
-      team?.body || "Not available in this saved meeting.",
-    ];
-
-    if (includeTranscript) {
-      lines.push(
-        "",
-        "---",
-        "",
-        "## Original Transcript",
-        "",
-        item.transcript || "No transcript available."
-      );
-    }
-
-    const blob = new Blob(
-      [lines.join("\n")],
-      { type: "text/markdown;charset=utf-8" }
-    );
-
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-
-    link.href = url;
-    link.download = `${safeFilename(item.title || "ghost-blueprint")}${
-      includeTranscript ? "-with-transcript" : ""
-    }.md`;
-
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-
-    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 
   async function copy(text: string) {
@@ -617,17 +463,85 @@ export default function GhostApp() {
     }
   }
 
-  function removeMeeting(item: MeetingResult) {
-    setMeetings((previous) =>
-      previous.filter(
-        (meeting) => meeting.createdAt !== item.createdAt
-      )
-    );
+  function exportMeeting(item: MeetingResult, includeTranscript = false) {
+    const lines = [
+      "# G.H.O.S.T. Meeting Blueprint",
+      "",
+      `# ${item.title}`,
+      "",
+      new Date(item.createdAt).toLocaleString(),
+      "",
+      "## Meeting Summary",
+      item.summary,
+      "",
+      "## Objective",
+      item.objective,
+      "",
+      "## Friction",
+      item.friction,
+      "",
+      "## Alignment",
+      item.alignment,
+      "",
+      "## Confirmed Decisions",
+      ...(item.decisions.length
+        ? item.decisions.map((decision) => `- ${decision}`)
+        : ["- No confirmed decisions identified."]),
+      "",
+      "## Action Items",
+      ...(item.actionItems.length
+        ? item.actionItems.map(
+            (action) =>
+              `- [ ] ${action.task} | Owner: ${action.owner} | Due: ${action.due}`
+          )
+        : ["- No clear action items identified."]),
+      "",
+      "## Efficiency Meter",
+      `- Transcript volume: ${item.efficiencyMeter.meetingVolume}`,
+      `- Estimated actionable velocity: ${item.efficiencyMeter.actionableVelocityPercent}%`,
+      `- Estimated non-actionable content: ${item.efficiencyMeter.corporateNoiseFilteredPercent}%`,
+      item.efficiencyMeter.methodology,
+      "",
+      "## Executive Blueprint",
+      `Subject: ${item.executiveFollowUp.subject}`,
+      item.executiveFollowUp.body,
+      "",
+      "## Client-Facing Delight",
+      `Subject: ${item.clientFollowUp.subject}`,
+      item.clientFollowUp.body,
+      "",
+      "## Team-Hustle Pulse",
+      `Subject: ${item.teamFollowUp.subject}`,
+      item.teamFollowUp.body,
+    ];
 
-    if (active?.createdAt === item.createdAt) {
-      setActive(null);
+    if (includeTranscript) {
+      lines.push("", "---", "", "## Original Transcript", "", item.transcript);
     }
 
+    const blob = new Blob([lines.join("\n")], {
+      type: "text/markdown;charset=utf-8",
+    });
+
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `${safeFilename(item.title)}${
+      includeTranscript ? "-with-transcript" : ""
+    }.md`;
+
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
+  function removeMeeting(item: MeetingResult) {
+    setMeetings((previous) =>
+      previous.filter((meeting) => meeting.createdAt !== item.createdAt)
+    );
+
+    if (active?.createdAt === item.createdAt) setActive(null);
     setNotice("Meeting deleted from this browser.");
   }
 
@@ -653,16 +567,9 @@ export default function GhostApp() {
               width={34}
               height={34}
               priority
-              style={{
-                width: "34px",
-                height: "34px",
-                objectFit: "contain",
-                borderRadius: "9px",
-                display: "block",
-              }}
+              style={{ width: 34, height: 34, objectFit: "contain" }}
             />
           </span>
-
           <span>
             G.H.O.S.T.
             <small>MEETING INTELLIGENCE</small>
@@ -672,57 +579,10 @@ export default function GhostApp() {
         <div className="top-actions">
           <span className="privacy">
             <ShieldCheck size={14} />
-            Your history stays in this browser
+            Browser-local history
           </span>
-
-          <button
-            className="icon-button"
-            onClick={() => setSettingsOpen(!settingsOpen)}
-            aria-label="Open preferences"
-          >
-            <Settings2 size={18} />
-          </button>
         </div>
       </header>
-
-      {settingsOpen && (
-        <section className="settings-panel">
-          <div className="settings-head">
-            <b>Your preferences</b>
-
-            <button
-              className="icon-button"
-              onClick={() => setSettingsOpen(false)}
-              aria-label="Close preferences"
-            >
-              <X size={16} />
-            </button>
-          </div>
-
-          <label htmlFor="voice-style">
-            Follow-up writing style
-          </label>
-
-          <select
-            id="voice-style"
-            value={style}
-            onChange={(event) =>
-              setStyle(event.target.value as VoiceStyle)
-            }
-          >
-            {Object.entries(styleNames).map(([key, value]) => (
-              <option key={key} value={key}>
-                {value}
-              </option>
-            ))}
-          </select>
-
-          <p>
-            Choose how G.H.O.S.T. writes your follow-up drafts.
-            This does not clone your voice.
-          </p>
-        </section>
-      )}
 
       <section className="hero" id="top">
         <div className="eyebrow">
@@ -737,165 +597,95 @@ export default function GhostApp() {
         </h1>
 
         <p className="hero-copy">
-          G.H.O.S.T. captures conversations, identifies what
-          matters, and turns spoken words into decisions,
-          action items and follow-ups.
+          Turn a recorded conversation or transcript into a clear Meeting
+          Blueprint: decisions, action items, owners and follow-ups.
         </p>
 
         <div className="hero-meta">
-          <span>
-            <ShieldCheck size={15} />
-            Permission-based recording
-          </span>
-
-          <span>
-            <AudioLines size={15} />
-            Spoken meeting recap
-          </span>
-
-          <span>
-            <FileText size={15} />
-            Decisions + actions + follow-up
-          </span>
+          <span><Check size={14} /> Permission-based capture</span>
+          <span><Check size={14} /> Structured decisions</span>
+          <span><Check size={14} /> Ready-to-use follow-ups</span>
         </div>
       </section>
 
       <section className="workspace">
         <div className="capture-panel">
-          <div className="section-kicker">01 / CAPTURE</div>
-
-          <div className="capture-title">
-            <div>
-              <h2>Capture the conversation</h2>
-              <p>Choose what G.H.O.S.T. should listen to.</p>
-            </div>
-
-            <span className={`status-tag ${status}`}>
-              {statusLabel}
-            </span>
-          </div>
-
-          <div
-            style={{
-              display: "flex",
-              gap: 8,
-              marginTop: 22,
-              marginBottom: 20,
-            }}
-          >
-            <button
-              type="button"
-              disabled={busy}
-              onClick={() => {
-                setMode("microphone");
-                setError("");
-              }}
-              aria-pressed={mode === "microphone"}
-              style={{
-                flex: 1,
-                minHeight: 48,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: 8,
-                border:
-                  mode === "microphone"
-                    ? "1px solid #c5f277"
-                    : "1px solid #343c38",
-                background:
-                  mode === "microphone" ? "#26321f" : "#0d1110",
-                color:
-                  mode === "microphone" ? "#c5f277" : "#aab4ae",
-                fontSize: 12,
-                fontWeight: 700,
-                cursor: busy ? "not-allowed" : "pointer",
-              }}
-            >
-              <Mic size={17} />
-              Quick Capture
-            </button>
-
-            <button
-              type="button"
-              disabled={busy}
-              onClick={() => {
-                setMode("tab");
-                setError("");
-              }}
-              aria-pressed={mode === "tab"}
-              style={{
-                flex: 1,
-                minHeight: 48,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: 8,
-                border:
-                  mode === "tab"
-                    ? "1px solid #c5f277"
-                    : "1px solid #343c38",
-                background: mode === "tab" ? "#26321f" : "#0d1110",
-                color: mode === "tab" ? "#c5f277" : "#aab4ae",
-                fontSize: 12,
-                fontWeight: 700,
-                cursor: busy ? "not-allowed" : "pointer",
-              }}
-            >
-              <Radio size={17} />
-              Meeting Tab
-            </button>
-          </div>
+          <div className="section-kicker">01 / CAPTURE THE CONVERSATION</div>
 
           <label className="field-label" htmlFor="meeting-title">
-            Conversation name
+            Meeting title
           </label>
-
           <input
             id="meeting-title"
             className="text-input"
             value={title}
-            onChange={(event) => setTitle(event.target.value)}
             maxLength={120}
-            placeholder="e.g. Client consultation"
-            disabled={busy}
+            onChange={(event) => setTitle(event.target.value)}
           />
 
-          <div className={`record-visual ${status}`}>
-            <div className="orb">
-              {mode === "microphone" ? (
-                <Mic size={32} />
-              ) : (
-                <AudioLines size={34} />
-              )}
-            </div>
+          <label className="field-label" htmlFor="writing-style">
+            Follow-up writing style
+          </label>
+          <select
+            id="writing-style"
+            className="text-input"
+            value={style}
+            onChange={(event) => setStyle(event.target.value as VoiceStyle)}
+          >
+            {Object.entries(styleNames).map(([key, value]) => (
+              <option key={key} value={key}>{value}</option>
+            ))}
+          </select>
 
-            <div className="record-time">{formatTime(elapsed)}</div>
+          <div className="capture-title">Choose your recording source</div>
 
-            <div className="record-caption">
-              {status === "recording"
-                ? "G.H.O.S.T. is listening."
-                : status === "paused"
-                  ? "Recording paused."
-                  : status === "processing"
-                    ? "Turning conversation into clear next steps..."
-                    : mode === "microphone"
-                      ? "Ready for a conversation."
-                      : "Ready to capture your meeting."}
-            </div>
-
-            <div className="wave" aria-hidden="true">
-              {Array.from({ length: 34 }, (_, index) => (
-                <i
-                  key={index}
-                  style={{
-                    height: `${8 + ((index * 17 + 11) % 29)}px`,
-                  }}
-                />
-              ))}
-            </div>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button
+              className="secondary-button"
+              style={{ flex: 1, marginTop: 0 }}
+              disabled={recording || busy}
+              onClick={() => setMode("microphone")}
+            >
+              <Mic size={15} /> Microphone
+            </button>
+            <button
+              className="secondary-button"
+              style={{ flex: 1, marginTop: 0 }}
+              disabled={recording || busy}
+              onClick={() => setMode("tab")}
+            >
+              <Radio size={15} /> Meeting tab
+            </button>
           </div>
 
-          {status === "recording" || status === "paused" ? (
+          <div className={`record-visual ${status}`}>
+            <AudioLines size={34} />
+            <div className="record-time">{formatTime(elapsed)}</div>
+            <div className="record-caption">{statusLabel}</div>
+          </div>
+
+          <label className="capture-note">
+            <input
+              type="checkbox"
+              checked={consent}
+              onChange={(event) => setConsent(event.target.checked)}
+            />
+            <span>
+              I confirm that everyone involved knows recording is taking place
+              and that I have obtained any required consent.
+            </span>
+          </label>
+
+          <div className="capture-note">
+            <ShieldCheck size={15} />
+            <span>
+              Audio and transcripts are sent to Google Gemini for processing.
+              Do not submit confidential conversations unless you have
+              permission and have reviewed the provider&apos;s data terms.
+            </span>
+          </div>
+
+          {recording ? (
             <div style={{ display: "flex", gap: 9 }}>
               {status === "recording" ? (
                 <button
@@ -903,8 +693,7 @@ export default function GhostApp() {
                   style={{ flex: 1, marginTop: 0 }}
                   onClick={pauseRecording}
                 >
-                  <Pause size={16} />
-                  Pause
+                  <Pause size={15} /> Pause
                 </button>
               ) : (
                 <button
@@ -912,8 +701,7 @@ export default function GhostApp() {
                   style={{ flex: 1, marginTop: 0 }}
                   onClick={resumeRecording}
                 >
-                  <Play size={16} />
-                  Resume
+                  <Play size={15} /> Resume
                 </button>
               )}
 
@@ -922,101 +710,55 @@ export default function GhostApp() {
                 style={{ flex: 1 }}
                 onClick={stopRecording}
               >
-                <Square size={15} fill="currentColor" />
-                Finish
+                <Square size={15} /> Finish
               </button>
             </div>
           ) : (
             <button
               className="primary-button"
               onClick={startRecording}
-              disabled={status === "processing"}
+              disabled={busy || !consent}
             >
-              {mode === "microphone" ? (
-                <Mic size={17} />
-              ) : (
-                <Radio size={17} />
-              )}
-
-              {status === "processing"
-                ? "Processing conversation..."
-                : mode === "microphone"
-                  ? "Start Quick Capture"
-                  : "Share meeting tab & start"}
+              {mode === "microphone" ? <Mic size={17} /> : <Radio size={17} />}
+              {busy ? "Processing conversation..." : "Start recording"}
             </button>
           )}
 
           <div className="capture-note">
             <CircleHelp size={15} />
-
             <span>
-              {mode === "microphone" ? (
-                <>
-                  Allow microphone access when asked. For an
-                  in-person conversation, place your device
-                  between participants. For a phone call, use
-                  speakerphone. G.H.O.S.T. does not directly
-                  intercept cellular call audio.
-                </>
-              ) : (
-                <>
-                  Choose your meeting tab and enable{" "}
-                  <b>Share tab audio</b>. Keep the browser
-                  sharing indicator visible while recording.
-                </>
-              )}
+              Tab capture requires a supported browser and the Share tab audio
+              permission. G.H.O.S.T. does not directly intercept cellular calls.
             </span>
           </div>
 
-          <div className="capture-note">
-            <ShieldCheck size={15} />
-
-            <span>
-              Recording should only begin with the knowledge
-              and consent of everyone involved. Your saved
-              meeting history is stored in this browser.
-            </span>
-          </div>
-
-          <div className="or-divider">
-            <span>OR</span>
-          </div>
+          <div className="or-divider"><span>OR</span></div>
 
           <button
             className="text-action"
-            onClick={() => setManualOpen(!manualOpen)}
+            onClick={() => setManualOpen((value) => !value)}
           >
             <Plus size={15} />
             Import a transcript instead
-            <ChevronDown
-              size={14}
-              className={manualOpen ? "rotated" : ""}
-            />
+            <ChevronDown size={14} />
           </button>
 
           {manualOpen && (
             <div className="manual-entry">
-              <label htmlFor="manual-transcript">
-                Review or edit your transcript
-              </label>
-
+              <label htmlFor="manual-transcript">Review or edit your transcript</label>
               <textarea
                 id="manual-transcript"
                 value={transcript}
                 onChange={(event) => setTranscript(event.target.value)}
-                placeholder="Your transcribed conversation will appear here. Review or edit it before creating your brief..."
-                rows={7}
+                placeholder="Paste your meeting transcript here..."
+                rows={8}
               />
-
               <button
                 className="secondary-button"
-                disabled={
-                  status === "processing" ||
-                  transcript.trim().length < 30
-                }
+                disabled={busy || transcript.trim().length < 30}
                 onClick={() => analyze(transcript)}
               >
-                Create my meeting blueprint
+                Create my Meeting Blueprint
                 <ArrowDownToLine size={15} />
               </button>
             </div>
@@ -1038,22 +780,15 @@ export default function GhostApp() {
               <h2>What matters now.</h2>
               <p>Your conversation, minus the mental replay.</p>
             </div>
-
-            <span className="result-count">
-              {meetings.length} SAVED
-            </span>
+            <span className="result-count">{meetings.length} SAVED</span>
           </div>
 
           {active ? (
             <div className="brief">
               <div className="brief-top">
                 <div>
-                  <span className="brief-label">
-                    G.H.O.S.T. MEETING BLUEPRINT
-                  </span>
-
+                  <span className="brief-label">G.H.O.S.T. MEETING BLUEPRINT</span>
                   <h3>{active.title}</h3>
-
                   <p className="brief-date">
                     {new Date(active.createdAt).toLocaleString()}
                   </p>
@@ -1062,383 +797,186 @@ export default function GhostApp() {
 
               <div className="spoken-card">
                 <div className="spoken-head">
-                  <span>
-                    <Volume2 size={15} />
-                    THE SPOKEN SUMMARY
-                  </span>
-
+                  <span><Volume2 size={15} /> THE SPOKEN SUMMARY</span>
                   <button
                     onClick={() =>
-                      playing
-                        ? stopSpeech()
-                        : speak(
-                            active.spokenSummary || active.summary || ""
-                          )
+                      playing ? stopSpeech() : speak(active.spokenSummary)
                     }
-                    aria-label={
-                      playing ? "Stop spoken summary" : "Play spoken summary"
-                    }
+                    aria-label={playing ? "Stop summary" : "Play summary"}
                   >
-                    {playing ? (
-                      <Pause size={16} />
-                    ) : (
-                      <Play size={16} />
-                    )}
+                    {playing ? <Pause size={16} /> : <Play size={16} />}
                   </button>
                 </div>
-
-                <p>{active.summary || "No summary available."}</p>
-
+                <p>{active.summary}</p>
                 <div className="spoken-footer">
-                  <span>
-                    {playing ? "SPEAKING NOW" : "READY TO PLAY"}
-                  </span>
+                  <span>{playing ? "SPEAKING NOW" : "READY TO PLAY"}</span>
                   <span>G.H.O.S.T.</span>
                 </div>
               </div>
 
               <div className="brief-section">
                 <h4>MEETING OUTCOME</h4>
-
-                <div style={{ display: "grid", gap: 14 }}>
-                  <div>
-                    <small className="brief-label">OBJECTIVE</small>
-                    <p>
-                      {active.objective ||
-                        "Not available in this saved meeting."}
-                    </p>
-                  </div>
-
-                  <div>
-                    <small className="brief-label">FRICTION</small>
-                    <p>
-                      {active.friction ||
-                        "Not available in this saved meeting."}
-                    </p>
-                  </div>
-
-                  <div>
-                    <small className="brief-label">ALIGNMENT</small>
-                    <p>
-                      {active.alignment ||
-                        "Not available in this saved meeting."}
-                    </p>
-                  </div>
-                </div>
+                <p><b>Objective</b><br />{active.objective}</p>
+                <p><b>Friction</b><br />{active.friction}</p>
+                <p><b>Alignment</b><br />{active.alignment}</p>
               </div>
 
               <div className="brief-section">
                 <h4>G.H.O.S.T. EFFICIENCY METER</h4>
-
-                {active.efficiencyMeter ? (
-                  <>
-                    <div className="metrics-grid">
-                      <div className="metric-card">
-                        <strong className="metric-volume">
-                          {active.efficiencyMeter.meetingVolume}
-                        </strong>
-                        <small>TRANSCRIPT VOLUME</small>
-                      </div>
-
-                      <div className="metric-card">
-                        <strong>
-                          {active.efficiencyMeter.actionableVelocityPercent}%
-                        </strong>
-                        <small>EST. ACTIONABLE VELOCITY</small>
-                      </div>
-
-                      <div className="metric-card">
-                        <strong>
-                          {active.efficiencyMeter.corporateNoiseFilteredPercent}%
-                        </strong>
-                        <small>EST. NON-ACTIONABLE</small>
-                      </div>
-                    </div>
-
-                    <p className="muted metric-disclaimer">
-                      Estimates based on transcript content, not measured
-                      time. These are directional indicators, not audited
-                      performance metrics.
-                    </p>
-
-                    <p className="muted metric-method">
-                      {active.efficiencyMeter.methodology}
-                    </p>
-                  </>
-                ) : (
-                  <p className="muted">
-                    Efficiency metrics are not available for this older
-                    saved meeting.
-                  </p>
-                )}
+                <div className="metrics-grid">
+                  <div className="metric-card">
+                    <strong className="metric-volume">
+                      {active.efficiencyMeter.meetingVolume}
+                    </strong>
+                    <small>TRANSCRIPT VOLUME</small>
+                  </div>
+                  <div className="metric-card">
+                    <strong>{active.efficiencyMeter.actionableVelocityPercent}%</strong>
+                    <small>EST. ACTIONABLE VELOCITY</small>
+                  </div>
+                  <div className="metric-card">
+                    <strong>{active.efficiencyMeter.corporateNoiseFilteredPercent}%</strong>
+                    <small>EST. NON-ACTIONABLE</small>
+                  </div>
+                </div>
+                <p className="muted metric-disclaimer">
+                  Estimates based on transcript content, not measured meeting
+                  time. These are directional indicators, not audited metrics.
+                </p>
+                <p className="muted metric-method">
+                  {active.efficiencyMeter.methodology}
+                </p>
               </div>
 
               <div className="brief-section">
-                <h4>
-                  <Check size={15} />
-                  CONFIRMED DECISIONS
-                </h4>
-
-                {active.decisions?.length ? (
+                <h4><Check size={15} /> CONFIRMED DECISIONS</h4>
+                {active.decisions.length ? (
                   <ul>
                     {active.decisions.map((decision, index) => (
                       <li key={index}>{decision}</li>
                     ))}
                   </ul>
                 ) : (
-                  <p className="muted">
-                    No confirmed decisions identified.
-                  </p>
+                  <p className="muted">No confirmed decisions identified.</p>
                 )}
               </div>
 
               <div className="brief-section">
-                <h4>
-                  <ArrowDownToLine size={15} />
-                  ACTION ITEMS
-                </h4>
-
-                {active.actionItems?.length ? (
+                <h4><ArrowDownToLine size={15} /> ACTION ITEMS</h4>
+                {active.actionItems.length ? (
                   <ul className="actions-list">
                     {active.actionItems.map((action, index) => (
                       <li key={index}>
                         <span>{action.task}</span>
-                        <small>
-                          {action.owner} · {action.due}
-                        </small>
+                        <small>{action.owner} · {action.due}</small>
                       </li>
                     ))}
                   </ul>
                 ) : (
-                  <p className="muted">
-                    No clear action items identified.
-                  </p>
+                  <p className="muted">No clear action items identified.</p>
                 )}
               </div>
 
-              <div className="brief-section followup">
-                <div className="follow-head">
-                  <h4>
-                    <FileText size={15} />
-                    GHOST-DRAFT 01 / EXECUTIVE BLUEPRINT
-                  </h4>
-
-                  <button
-                    className="mini-action"
-                    onClick={() =>
-                      copy(
-                        active.executiveFollowUp
-                          ? `Subject: ${active.executiveFollowUp.subject}\n\n${active.executiveFollowUp.body}`
-                          : "This draft is not available in this saved meeting."
-                      )
-                    }
-                  >
-                    <Copy size={13} />
-                    Copy
-                  </button>
+              {([
+                ["EXECUTIVE BLUEPRINT", active.executiveFollowUp],
+                ["CLIENT-FACING DELIGHT", active.clientFollowUp],
+                ["TEAM-HUSTLE PULSE", active.teamFollowUp],
+              ] as const).map(([label, draft]) => (
+                <div className="brief-section followup" key={label}>
+                  <div className="follow-head">
+                    <h4><FileText size={15} /> {label}</h4>
+                    <button
+                      className="mini-action"
+                      onClick={() => copy(`Subject: ${draft.subject}\n\n${draft.body}`)}
+                    >
+                      <Copy size={13} /> Copy
+                    </button>
+                  </div>
+                  <strong>{draft.subject}</strong>
+                  <p>{draft.body}</p>
                 </div>
-
-                {active.executiveFollowUp ? (
-                  <>
-                    <strong>{active.executiveFollowUp.subject}</strong>
-                    <p>{active.executiveFollowUp.body}</p>
-                  </>
-                ) : (
-                  <p className="muted">
-                    Not available in this saved meeting.
-                  </p>
-                )}
-              </div>
-
-              <div className="brief-section followup">
-                <div className="follow-head">
-                  <h4>
-                    <FileText size={15} />
-                    GHOST-DRAFT 02 / CLIENT-FACING DELIGHT
-                  </h4>
-
-                  <button
-                    className="mini-action"
-                    onClick={() =>
-                      copy(
-                        active.clientFollowUp
-                          ? `Subject: ${active.clientFollowUp.subject}\n\n${active.clientFollowUp.body}`
-                          : active.followUp || "This draft is not available."
-                      )
-                    }
-                  >
-                    <Copy size={13} />
-                    Copy
-                  </button>
-                </div>
-
-                {active.clientFollowUp ? (
-                  <>
-                    <strong>{active.clientFollowUp.subject}</strong>
-                    <p>{active.clientFollowUp.body}</p>
-                  </>
-                ) : (
-                  <p>{active.followUp || "Not available in this saved meeting."}</p>
-                )}
-              </div>
-
-              <div className="brief-section followup">
-                <div className="follow-head">
-                  <h4>
-                    <FileText size={15} />
-                    GHOST-DRAFT 03 / TEAM-HUSTLE PULSE
-                  </h4>
-
-                  <button
-                    className="mini-action"
-                    onClick={() =>
-                      copy(
-                        active.teamFollowUp
-                          ? `Subject: ${active.teamFollowUp.subject}\n\n${active.teamFollowUp.body}`
-                          : "This draft is not available in this saved meeting."
-                      )
-                    }
-                  >
-                    <Copy size={13} />
-                    Copy
-                  </button>
-                </div>
-
-                {active.teamFollowUp ? (
-                  <>
-                    <strong>{active.teamFollowUp.subject}</strong>
-                    <p>{active.teamFollowUp.body}</p>
-                  </>
-                ) : (
-                  <p className="muted">
-                    Not available in this saved meeting.
-                  </p>
-                )}
-              </div>
+              ))}
 
               <div className="brief-section">
                 <div className="follow-head">
-                  <h4>
-                    <FileText size={15} />
-                    ORIGINAL TRANSCRIPT
-                  </h4>
-
+                  <h4>ORIGINAL TRANSCRIPT</h4>
                   <button
                     className="mini-action"
-                    onClick={() => copy(active.transcript || "")}
+                    onClick={() => copy(active.transcript)}
                   >
-                    <Copy size={13} />
-                    Copy
+                    <Copy size={13} /> Copy
                   </button>
                 </div>
-
                 <details>
                   <summary>Show original transcript</summary>
-
-                  <p className="transcript-text">
-                    {active.transcript || "No transcript available."}
-                  </p>
+                  <p className="transcript-text">{active.transcript}</p>
                 </details>
               </div>
 
               <div className="brief-section">
-                <h4>
-                  <ArrowDownToLine size={15} />
-                  EXPORT BLUEPRINT
-                </h4>
-
+                <h4>EXPORT BLUEPRINT</h4>
                 <div className="export-actions">
                   <button
                     className="secondary-button"
                     onClick={() => exportMeeting(active, false)}
                   >
-                    <ArrowDownToLine size={15} />
-                    Download Blueprint (.md)
+                    <ArrowDownToLine size={15} /> Blueprint (.md)
                   </button>
-
                   <button
                     className="secondary-button"
                     onClick={() => exportMeeting(active, true)}
                   >
-                    <ArrowDownToLine size={15} />
-                    Download Blueprint + Transcript (.md)
+                    <ArrowDownToLine size={15} /> Blueprint + Transcript (.md)
                   </button>
                 </div>
               </div>
 
               <div className="brief-foot">
-                <button
-                  className="text-action"
-                  onClick={() => setActive(null)}
-                >
+                <button className="text-action" onClick={() => setActive(null)}>
                   Close brief
                 </button>
-
                 <button
                   className="text-action danger-action"
                   onClick={() => removeMeeting(active)}
                 >
-                  <Trash2 size={14} />
-                  Delete
+                  <Trash2 size={14} /> Delete
                 </button>
               </div>
             </div>
           ) : (
             <div className="empty-state">
-              <div className="empty-icon">
-                <AudioLines size={26} />
-              </div>
-
+              <div className="empty-icon"><AudioLines size={26} /></div>
               <h3>Nothing gets lost here.</h3>
-
               <p>
-                Capture your next conversation. G.H.O.S.T.
-                will organise the summary, decisions and
-                follow-up here.
+                Capture your next conversation. G.H.O.S.T. will organise the
+                summary, decisions and follow-up here.
               </p>
-
-              <span>
-                YOUR NEXT STEP IS ON THE LEFT <span>↖</span>
-              </span>
+              <span>YOUR NEXT STEP IS ON THE LEFT ↖</span>
             </div>
           )}
 
           {meetings.length > 0 && (
             <div className="history">
               <div className="history-head">
-                RECENT CONVERSATIONS
-                <span>{meetings.length}</span>
+                RECENT CONVERSATIONS <span>{meetings.length}</span>
               </div>
-
               {meetings.slice(0, 5).map((meeting) => (
                 <button
                   className={`history-row ${
-                    active?.createdAt === meeting.createdAt
-                      ? "selected"
-                      : ""
+                    active?.createdAt === meeting.createdAt ? "selected" : ""
                   }`}
                   key={meeting.createdAt}
                   onClick={() => setActive(meeting)}
                 >
-                  <span className="history-icon">
-                    <FileText size={15} />
-                  </span>
-
+                  <span className="history-icon"><FileText size={15} /></span>
                   <span className="history-name">
                     <b>{meeting.title}</b>
                     <small>
-                      {new Date(
-                        meeting.createdAt
-                      ).toLocaleDateString()}
-                      {" · "}
-                      {meeting.actionItems?.length || 0} actions
+                      {new Date(meeting.createdAt).toLocaleDateString()}
+                      {" · "}{meeting.actionItems.length} actions
                     </small>
                   </span>
-
-                  <ChevronDown
-                    size={15}
-                    className="history-arrow"
-                  />
+                  <ChevronDown size={15} className="history-arrow" />
                 </button>
               ))}
             </div>
@@ -1449,32 +987,21 @@ export default function GhostApp() {
       <footer className="footer">
         <div className="footer-brand">
           G.H.O.S.T.
-          <span>
-            DON&apos;T LET THE IMPORTANT PART DISAPPEAR.
-          </span>
+          <span>DON&apos;T LET THE IMPORTANT PART DISAPPEAR.</span>
         </div>
-
         <p>
-          Record only with everyone&apos;s knowledge and consent.
-          Recording laws and workplace policies vary. Verify
-          AI-generated decisions and commitments before acting.
-          Audio and transcript content are processed by our AI
-          service providers.
+          Record only with everyone&apos;s knowledge and consent. Recording
+          laws and workplace policies vary. Verify AI-generated decisions and
+          commitments before acting. Audio and transcript content are processed
+          by Google Gemini.
         </p>
-
-        <span className="version">
-          EARLY ACCESS BUILD · 03
-        </span>
+        <span className="version">EARLY ACCESS BUILD · 04</span>
       </footer>
 
       {notice && (
         <div className="toast" role="status">
           {notice}
-
-          <button
-            onClick={() => setNotice("")}
-            aria-label="Dismiss notification"
-          >
+          <button onClick={() => setNotice("")} aria-label="Dismiss notification">
             <X size={14} />
           </button>
         </div>
