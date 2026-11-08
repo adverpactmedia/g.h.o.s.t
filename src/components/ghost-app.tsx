@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useEffect, useRef, useState } from "react";
@@ -26,7 +27,7 @@ import { safeFilename } from "@/lib/format";
 
 const STORE = "ghost-voice-meetings-v1";
 const STYLE_STORE = "ghost-voice-style-v1";
-const MAX_AUDIO_SIZE = 24 * 1024 * 1024;
+const MAX_AUDIO_SIZE = 4 * 1024 * 1024;
 
 type CaptureMode = "microphone" | "tab";
 type RecordingStatus =
@@ -248,7 +249,7 @@ export default function GhostApp() {
           exceededSize.current = true;
 
           setError(
-            "The recording has reached the 24 MB upload limit. End the recording and use a shorter session."
+            "The recording has reached the 4 MB upload limit. End the recording and use a shorter session."
           );
 
           if (mediaRecorder.state !== "inactive") {
@@ -380,7 +381,7 @@ export default function GhostApp() {
     if (blob.size > MAX_AUDIO_SIZE) {
       setStatus("error");
       setError(
-        "This recording exceeds the 24 MB upload limit. Use a shorter recording."
+        "This recording exceeds the 4 MB upload limit. Use a shorter recording."
       );
       return;
     }
@@ -419,10 +420,11 @@ export default function GhostApp() {
       }
 
       setTranscript(result.transcript);
-
-      setNotice("Transcript ready. Extracting what matters...");
-
-      await analyze(result.transcript);
+      setManualOpen(true);
+      setStatus("idle");
+      setNotice(
+        "Transcript ready. Review it before creating your brief."
+      );
     } catch (err) {
       setStatus("error");
 
@@ -739,7 +741,6 @@ export default function GhostApp() {
                 alignItems: "center",
                 justifyContent: "center",
                 gap: 8,
-                borderRadius: 5,
                 border:
                   mode === "microphone"
                     ? "1px solid #c5f277"
@@ -776,7 +777,6 @@ export default function GhostApp() {
                 alignItems: "center",
                 justifyContent: "center",
                 gap: 8,
-                borderRadius: 5,
                 border:
                   mode === "tab"
                     ? "1px solid #c5f277"
@@ -961,7 +961,7 @@ export default function GhostApp() {
           {manualOpen && (
             <div className="manual-entry">
               <label htmlFor="manual-transcript">
-                Meeting transcript
+                Review or edit your transcript
               </label>
 
               <textarea
@@ -970,7 +970,7 @@ export default function GhostApp() {
                 onChange={(event) =>
                   setTranscript(event.target.value)
                 }
-                placeholder="Paste your meeting transcript here..."
+                placeholder="Your transcribed conversation will appear here. Review or edit it before creating your brief..."
                 rows={7}
               />
 
