@@ -1,49 +1,109 @@
-# Assumptions and product decisions
+# Assumptions and Product Decisions
 
 ## Product
 
-- Product name is G.H.O.S.T. (Meeting Ghost Voice). The acronym is treated as a brand, not expanded into a forced phrase.
-- The primary buyer is an independent professional or small-team knowledge worker who attends recurring calls and must personally track commitments.
-- The primary job is to turn one meeting into a usable recap and next-step list, not to replace a full meeting platform or project-management tool.
-- The first meaningful value is the spoken recap plus decisions/actions after one meeting.
+- Product name: G.H.O.S.T.
+- Acronym: Gather. Highlight. Organize. Summarize. Track.
+- Tagline: Your meetings end. Their decisions don't.
+- The primary job is to turn a meeting transcript or recording into a structured Meeting Blueprint.
+- The Blueprint is an AI-generated draft. Users must review it before relying on it.
+- G.H.O.S.T. is not a replacement for a meeting platform, project-management system, or human decision-maker.
 
-## Capture and consent
+## Capture and Consent
 
-- “Runs in the background” is interpreted as recording a user-selected, explicitly shared browser tab while the app is open. Browser security prevents silent capture of arbitrary system audio.
-- “Joins calls” is not claimed in v1. Autonomous joining requires separate Zoom/Google Meet/Microsoft Teams integrations, OAuth scopes, bot infrastructure, provider approval and platform-specific compliance.
-- The UI shows recording state and uses the browser's sharing prompt. Users must disclose recording and obtain consent required by their jurisdiction and workplace.
-- Browser tab audio capture is variable across browser/platform combinations. A paste-transcript fallback is provided.
+- Microphone recording requires browser permission.
+- Meeting-tab recording requires browser screen/tab sharing and enabled tab audio.
+- Browser security prevents silent capture of arbitrary system audio.
+- G.H.O.S.T. does not directly intercept cellular calls.
+- G.H.O.S.T. does not autonomously join Zoom, Google Meet, or Microsoft Teams calls.
+- Users must disclose recording and obtain consent required by applicable law and workplace policy.
+- Browser audio capture varies by browser and device.
+- Transcript paste is the fallback when recording is unavailable.
 
-## AI processing
+## AI Processing
 
-- OpenAI is the default transcription and analysis provider. The API key remains on the server.
-- `whisper-1` is the default transcription model; `gpt-4o-mini` is the default structured analysis model. Both can be changed with server environment variables.
-- Analysis must not invent names, decisions, owners or due dates. Unknown values should be marked “Not specified.”
-- “In your voice” is interpreted as a selectable writing tone, not voice cloning or style training. Browser speech synthesis is used for playback.
-- AI output is a draft and requires human review. It is not an authoritative record of the meeting.
+- Google Gemini is the current AI provider.
+- The server-side environment variable `GEMINI_API_KEY` is required.
+- Audio transcription uses `gemini-3.5-transcribe`.
+- Meeting analysis uses `gemini-3.8-flash` through the Gemini Interactions API.
+- Analysis runs as a background interaction and the application polls for completion.
+- The application requests structured JSON containing:
+  - Meeting summary
+  - Objective, friction and alignment
+  - Confirmed decisions
+  - Action items, owners and deadlines
+  - Estimated efficiency indicators
+  - Three follow-up drafts
+- The analysis prompt treats transcript content as untrusted source material.
+- Suggestions must not be represented as confirmed decisions.
+- Unknown owners and deadlines must not be invented.
+- AI output must be reviewed by the user.
 
-## Data and architecture
+## Efficiency Indicators
 
-- No authentication or hosted database is included in v1. Meeting history is stored in local browser storage to reduce setup friction and avoid retaining sensitive recordings on a vendor server.
-- Raw audio is sent to the configured transcription endpoint and is not intentionally persisted by this application. The transcription provider's own data handling terms still apply.
-- Transcript and generated brief are stored in local storage. Users can delete a brief; clearing browser storage also removes all saved history.
-- The current upload limit is 24 MB per meeting recording. Long-meeting chunking and resumable uploads are deferred.
+- Transcript volume is estimated from transcript content.
+- Actionable velocity and non-actionable content are estimates.
+- Transcript text cannot establish actual meeting duration.
+- The application must not claim verified minutes saved.
+- These indicators are directional, not audited business metrics.
+
+## Data and Architecture
+
+- The current application has no user accounts.
+- There is no hosted meeting database or cloud-synced history.
+- Meeting history is stored in the browser's local storage.
+- Clearing browser storage can remove saved meeting history.
+- Local storage is not an encrypted archive.
+- Audio is uploaded to Google Gemini for transcription.
+- The application attempts to delete the temporary Gemini audio file after processing.
+- Transcript analysis uses the Gemini Interactions API with `store: true`.
+- Do not claim zero retention or guaranteed deletion of all provider-side data.
+- Review Google's applicable data terms before submitting sensitive material.
+- Current maximum audio upload size: 4 MB.
+- Long-recording chunking and resumable application-level uploads are not implemented.
+
+## Security Boundary
+
+- API endpoints currently do not implement user authentication.
+- Rate limiting currently uses process-local memory.
+- Process-local rate limiting is not reliable as a complete production abuse-prevention system in a serverless environment.
+- Keep the Vercel deployment protected during testing.
+- Do not open the application to unrestricted public use until authentication or effective access control and reliable usage limits are implemented.
+- Never expose `GEMINI_API_KEY` through a `NEXT_PUBLIC_` environment variable.
 
 ## Monetization
 
-- Proposed $15–29 one-time meeting pack and $39/month unlimited pricing are hypotheses only.
-- Checkout, subscription management, usage metering and entitlements are not implemented. It would be misleading to show a working payment flow before identity and entitlement enforcement exist.
-- Before billing, test whether professionals repeatedly use the product and whether they prefer per-meeting credits or an unlimited subscription. Measure transcription and analysis costs per recorded hour.
+- Proposed one-time meeting packs and monthly subscriptions are unvalidated pricing hypotheses.
+- Checkout, subscription management, usage metering and entitlement enforcement are not implemented.
+- Do not present payment as a working product capability.
+- Validate recurring usage and willingness to pay before implementing billing.
+- Measure transcription and analysis costs per completed meeting before setting final pricing.
+
+## Product Limitations
+
+- No team workspaces.
+- No shared cloud archive.
+- No task completion tracking.
+- No task assignment system.
+- No reminders or notifications.
+- No calendar, CRM, email or project-management integrations.
+- No autonomous meeting attendance.
+- No regulated-industry compliance certification.
+- No guarantee that AI-generated decisions or action items are correct.
 
 ## Design
 
-- Personality: discreet, precise, slightly mysterious, calm under pressure.
-- Emotional response: relief and clarity, not surveillance or artificial intimacy.
-- Primary use: desktop browser beside a video-call tab; mobile layout supports review and transcript paste.
-- Visual language: charcoal surfaces, restrained acid-lime signal color, mono labels, editorial serif accent, compact meeting-brief hierarchy.
-- Motion is limited to recording feedback and state transitions. Reduced-motion preference is respected.
+- Personality: discreet, precise, calm and professional.
+- Avoid surveillance language and artificial intimacy.
+- Primary workflow: capture or import, process, review and export.
+- Mobile supports review and transcript entry.
+- Desktop is the preferred environment for meeting-tab capture.
+- Motion should communicate recording and processing states clearly.
+- Respect reduced-motion preferences.
 
-## Compliance and limitations
+## Compliance and Limitations
 
-- The app does not provide legal advice about recording consent. Consent obligations vary by location, participant location, employer and platform.
-- The app is not certified for regulated health, legal, financial or other sensitive-record use. Do not use it for confidential or regulated conversations without reviewing vendor terms and applicable obligations.
+- G.H.O.S.T. does not provide legal advice about recording consent.
+- Consent requirements depend on jurisdiction, participant location, workplace policy and platform.
+- Do not use the current application for confidential or regulated conversations without reviewing applicable obligations and provider terms.
+- Do not claim PIPEDA compliance, HIPAA compliance or other certification without a verified assessment.
