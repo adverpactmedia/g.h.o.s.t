@@ -1,57 +1,169 @@
-# Deployment and operations
+
+# G.H.O.S.T. Deployment and Operations
+
+## Requirements
+
+- Node.js 20.9 or newer
+- npm
+- A Google Gemini API key
+- A Vercel project connected to this repository
+- HTTPS for production browser audio capture
 
 ## Local development
 
 ```bash
 npm install
 cp .env.example .env.local
-# Add OPENAI_API_KEY
+```
+
+Add your Gemini API key to `.env.local`:
+
+```bash
+GEMINI_API_KEY=your_gemini_api_key
+```
+
+Start the development server:
+
+```bash
 npm run dev
 ```
 
-Use Node.js 20.9 or newer. Tab capture requires localhost or HTTPS and a browser that supports `getDisplayMedia` audio capture.
+Open http://localhost:3000.
 
-## Environment
+Never commit `.env.local`. Never expose the API key through a `NEXT_PUBLIC_` variable.
 
-- `OPENAI_API_KEY`: server-only API credential; required for transcription and analysis.
-- `OPENAI_TRANSCRIPTION_MODEL`: optional, defaults to `whisper-1`.
-- `OPENAI_ANALYSIS_MODEL`: optional, defaults to `gpt-4o-mini`.
+## Environment variables
 
-Never prefix the API key with `NEXT_PUBLIC_`. Never commit `.env.local`.
+| Variable | Required | Purpose |
+|---|---:|---|
+| `GEMINI_API_KEY` | Yes | Server-side key used for audio transcription and meeting analysis. |
 
-## Database migrations
+The current application does not use the old OpenAI environment variables.
 
-No database or migrations are part of v1. Meeting history is stored in local browser storage. If cloud sync is added, introduce an explicit schema, account ownership, authorization tests, retention policy and export/delete controls before storing transcripts server-side.
+## AI services
+
+G.H.O.S.T. currently uses Google's Gemini API:
+
+- Audio transcription: `gemini-3.5-transcribe`
+- Meeting analysis: `gemini-3.8-flash` through the Interactions API
+
+The transcription endpoint accepts audio uploads up to 4 MB.
+
+The analysis endpoint starts a background interaction. The browser then polls the application for the result.
+
+A successful deployment does not by itself prove that the configured API key, model access, quotas, or billing are working. Test both transcription and transcript analysis after deployment.
 
 ## Vercel deployment
 
-1. Push the repository to GitHub.
-2. Import the repository into Vercel as a Next.js project.
-3. Add `OPENAI_API_KEY` as a server environment variable. Add model overrides only if needed.
-4. Deploy and verify the homepage and API configuration behavior.
-5. Test tab capture on the production HTTPS domain using a supported browser.
-6. Redeploy whenever environment variables change.
+1. Open the G.H.O.S.T. project in Vercel.
+2. Open Project Settings.
+3. Open Environment Variables.
+4. Add `GEMINI_API_KEY`.
+5. Apply it to the Production environment.
+6. Confirm the value is correct.
+7. Redeploy after changing the environment variable.
+8. Wait for the deployment to report Ready.
+9. Open the production URL over HTTPS.
+10. Complete the user-side tests in the launch checklist.
 
-## Custom domain
+Keep deployment protection enabled during the initial test period.
 
-Attach the domain in Vercel project settings and configure the DNS records Vercel provides. Confirm HTTPS is active before testing screen capture.
+## Browser recording requirements
+
+G.H.O.S.T. uses browser-supported media capture.
+
+- The user must explicitly start capture.
+- The user must select the appropriate tab or microphone source.
+- Tab audio must be enabled in the browser's sharing prompt.
+- Browser and operating-system support varies.
+- G.H.O.S.T. does not automatically join meetings.
+- G.H.O.S.T. does not intercept cellular calls or capture audio from every application.
+
+Use a current desktop Chromium-based browser for the first production recording test.
+
+## Data handling and privacy
+
+- Meeting history is stored in the current browser's local storage.
+- History is not cloud-synced between devices.
+- Clearing browser storage can delete saved meeting history.
+- Audio is sent to Google's Gemini API for transcription.
+- The resulting transcript is sent to Gemini for meeting analysis.
+- The transcription route attempts to delete its temporary uploaded Gemini file after processing.
+- The analysis route currently requests stored background interactions.
+
+Do not describe the service as zero-retention, encrypted cloud storage, or compliant with a particular privacy law unless those claims have been independently verified.
+
+Users must obtain all required participant consent and must not submit confidential conversations unless they have permission and have reviewed the relevant provider terms.
+
+## Security and launch boundary
+
+The current application is an early MVP.
+
+Important limitations:
+
+- API routes do not currently require user authentication.
+- The current rate limiter uses process memory and is not a reliable distributed abuse-control system.
+- Anyone who can reach an unprotected deployment may be able to call the AI endpoints and generate API usage.
+- There is no account system, user-level quota, payment enforcement, or team access control.
+
+For initial testing, keep the Vercel deployment protected and share access only with intended testers.
+
+Do not expose the application to unrestricted public traffic until authentication or an effective access-control layer and reliable usage limits are in place.
+
+## Production verification
+
+Run these checks before accepting the deployment:
+
+```bash
+npm run typecheck
+npm run lint
+npm test
+npm run build
+```
+
+Then test the deployed application:
+
+1. Open the app.
+2. Import a transcript.
+3. Generate a Meeting Blueprint.
+4. Confirm the summary, decisions, action items, efficiency estimates, and all three follow-up drafts render.
+5. Refresh the page and confirm saved history behaves as expected.
+6. Copy and export the Blueprint.
+7. Test a short audio recording.
+8. Confirm transcription completes and the resulting transcript can be reviewed.
+9. Confirm a failed request displays a useful error and does not erase the transcript.
 
 ## Rollback
 
-Use Vercel Deployments to promote the last known-good deployment. Keep environment variables compatible between releases. Because local history is browser-side, rolling back the app does not migrate or restore local data.
+If a deployment fails:
 
-## Security checklist
+1. Open Vercel Deployments.
+2. Identify the last known-good deployment.
+3. Promote that deployment to Production.
+4. Re-test the production URL.
 
-- [ ] Keep `OPENAI_API_KEY` server-side and rotate it if exposed.
-- [ ] Add authentication or an access gate before public launch. Current API routes are unauthenticated and can incur provider costs.
-- [ ] Add per-user/IP rate limits and request quotas before public launch.
-- [ ] Consider upload limits, duration limits and abuse monitoring.
-- [ ] Review OpenAI data processing/retention terms for the intended customer segment.
-- [ ] Do not use for regulated or confidential calls until compliance and contractual requirements are reviewed.
-- [ ] Explain recording consent responsibilities to every user.
-- [ ] Provide data export and deletion controls before cloud storage is introduced.
-- [ ] Verify dependency updates and production logs do not contain transcripts or secrets.
+A rollback does not restore browser local storage that a user has cleared or lost.
 
-## Production readiness boundary
+## Current release scope
 
-This repository is a deployable MVP, not a fully hardened public SaaS. In particular, unauthenticated AI endpoints must not be exposed to unrestricted public traffic. Before a paid launch, add authentication, rate limiting, account-scoped entitlements, usage metering, payment webhooks, privacy/retention controls, long-recording recovery and jurisdiction-specific legal review.
+The initial release is limited to:
+
+- Browser-based audio capture
+- Transcript review and editing
+- AI-generated Meeting Blueprints
+- Saved browser-local meeting history
+- Copy and Markdown export
+- Spoken recap where browser speech synthesis is supported
+
+The following are not currently included:
+
+- User accounts
+- Cloud-synced meeting history
+- Team workspaces
+- Automatic meeting-platform joining
+- Calendar or CRM integrations
+- Email sending
+- Task reminders or completion tracking
+- Subscription billing
+
+Do not advertise unavailable capabilities as current product features.
