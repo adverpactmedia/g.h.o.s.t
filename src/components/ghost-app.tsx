@@ -39,7 +39,7 @@ import {
   getAudioFileExtension,
   MAX_AUDIO_SIZE,
 } from "@/lib/audio";
-import { BlueprintIntelligence } from "@/components/blueprint-intelligence";
+import BlueprintIntelligence from "@/components/blueprint-intelligence";
 import { buildBlueprintMarkdown } from "@/lib/blueprint-export";
 
 const STORE = "ghost-voice-meetings-v1";
