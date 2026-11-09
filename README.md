@@ -1,17 +1,19 @@
-
 # G.H.O.S.T.
 
 **Gather. Highlight. Organize. Summarize. Track.**
 
-**Your meetings leave. Their decisions don't.**
+**Your meetings end. Their decisions don't.**
 
-G.H.O.S.T. turns a recorded conversation or pasted transcript into a structured Meeting Blueprint, so important decisions, action items and follow-ups are easier to find after the meeting ends.
+G.H.O.S.T. turns a recorded conversation or pasted transcript into a structured leadership Meeting Blueprint: confirmed decisions, accountable owners, deadlines, corrections and unresolved issues.
 
 ## What G.H.O.S.T. produces
 
 Each Meeting Blueprint includes:
 
 - **Meeting Summary:** the objective, main friction and alignment.
+- **Decision Intelligence:** separates confirmed, tentative, reversed and unresolved decisions.
+- **Supporting Evidence:** extracts relevant transcript wording and confidence indicators.
+- **Verbal Corrections:** shows superseded wording and the replacement where a correction is identified.
 - **Confirmed Decisions:** explicit agreements identified in the conversation.
 - **Action Items:** tasks, owners and deadlines where stated.
 - **Efficiency Meter:** estimated measures based on transcript content, not verified meeting duration.
@@ -19,6 +21,7 @@ Each Meeting Blueprint includes:
 - **Client-Facing Delight:** a professional external follow-up draft.
 - **Team-Hustle Pulse:** an internal next-steps draft.
 - **Original Transcript:** retained with the saved meeting record.
+- **Language Selection:** choose the output language for the Blueprint and follow-up drafts; language metadata and a translated transcript are included when returned by the model.
 
 AI-generated content can be incomplete or incorrect. Review every decision, owner, deadline and follow-up before relying on or sending it.
 
@@ -44,6 +47,8 @@ You can also paste an existing transcript instead of recording.
 - Transcript import by pasting text.
 - Gemini-powered transcription and meeting analysis.
 - Four writing styles: Direct, Warm, Executive and Casual.
+- User-selected Blueprint output language.
+- Automatic audio language identification through Gemini transcription.
 - Saved meeting history in the current browser.
 - Spoken recap using browser speech synthesis.
 - Copy and Markdown export.
@@ -63,6 +68,7 @@ The current version does not:
 - Sync meeting history between devices.
 - Provide user accounts or team workspaces.
 - Provide subscription billing.
+- Accept MP4/video uploads or standalone audio-file uploads.
 
 Do not assume that a task is being tracked after the Blueprint is generated. The current product creates a record and follow-up drafts; it does not manage task completion.
 
@@ -93,96 +99,3 @@ For the most reliable first test of shared-tab audio, use a current desktop Chro
 ```bash
 npm install
 cp .env.example .env.local
-```
-
-Add your Gemini API key to `.env.local`:
-
-```bash
-GEMINI_API_KEY=your_gemini_api_key
-```
-
-Start the development server:
-
-```bash
-npm run dev
-```
-
-Open http://localhost:3000.
-
-Never commit `.env.local`. Never expose the API key using a `NEXT_PUBLIC_` variable.
-
-## Environment variables
-
-| Variable | Required | Purpose |
-|---|---:|---|
-| `GEMINI_API_KEY` | Yes | Server-side credential for transcription and meeting analysis. |
-
-## AI services
-
-The current application uses Google's Gemini API:
-
-- Audio transcription: `gemini-3.5-transcribe`
-- Meeting analysis: `gemini-3.8-flash` through the Interactions API
-
-Audio uploads are limited to 4 MB.
-
-Meeting analysis runs as a background interaction. The application polls for completion rather than holding one long-running request open.
-
-Actual model availability, account permissions, quotas and billing depend on the configured Google AI account.
-
-## Data storage
-
-No application database is currently required.
-
-Saved meetings are stored in browser local storage. This means:
-
-- Records are available only in the browser profile where they were saved.
-- Records do not automatically appear on another device.
-- Clearing site data can remove saved records.
-- Browser storage is not a secure document archive.
-- Users should export important records and store them appropriately.
-
-## Deployment
-
-G.H.O.S.T. is a Next.js application and is deployed through Vercel.
-
-Add `GEMINI_API_KEY` to the Vercel Production environment variables and redeploy after changing it.
-
-See [DEPLOYMENT.md](./DEPLOYMENT.md) for deployment steps, operational limitations and verification checks.
-
-## Security and launch limitations
-
-This is an early MVP, not a hardened public SaaS.
-
-- API endpoints do not currently require user authentication.
-- The current rate limiter uses process memory and is not reliable distributed abuse protection.
-- Unrestricted public access could allow other visitors to generate Gemini API usage.
-- There are no user-level quotas or billing controls.
-
-Keep deployment protection enabled for initial testing. Do not expose the application to unrestricted public traffic until appropriate access control and reliable usage limits are implemented.
-
-## Quality checks
-
-Run the following commands before deployment:
-
-```bash
-npm run typecheck
-npm run lint
-npm test
-npm run build
-```
-
-The automated tests do not replace real browser testing. Verify transcript import, AI analysis, recording permissions, transcription, saving, export and error handling on the deployed application.
-
-## Project structure
-
-```text
-src/app/                 Next.js pages, styles and API routes
-src/app/api/transcribe/  Audio transcription endpoint
-src/app/api/analyze/     Meeting analysis endpoint
-src/components/          Main G.H.O.S.T. interface
-src/lib/                 Validation, formatting and rate limiting
-src/types/               Shared meeting types
-tests/                   Automated tests
-public/                  Static assets
-```
