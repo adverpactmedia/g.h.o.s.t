@@ -333,6 +333,11 @@ export default function BlueprintIntelligence({
 
           {meeting.translatedTranscript && (
             <>
+              <p className="ghost-muted">
+                Translated copy: {meeting.outputLanguage || "selected output language"}.
+                The original transcript above remains unchanged.
+              </p>
+
               <button
                 className="mini-action"
                 onClick={() =>
@@ -340,7 +345,7 @@ export default function BlueprintIntelligence({
                 }
               >
                 {showTranslated
-                  ? "Show original transcript"
+                  ? "Hide translated transcript"
                   : "Show translated transcript"}
               </button>
 
