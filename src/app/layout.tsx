@@ -4,9 +4,9 @@ import ghostLogo from "../../Ghogo.jpg";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "G.H.O.S.T. | Your meetings leave. Their decisions don't.",
+  title: "G.H.O.S.T. | Your meetings end. Their decisions don't.",
   description:
-    "Turn recorded conversations into clear summaries, confirmed decisions, action items and follow-ups.",
+    "Turn leadership meetings into structured records of confirmed decisions, accountable owners, deadlines and unresolved issues.",
 
   applicationName: "G.H.O.S.T.",
 
@@ -17,6 +17,9 @@ export const metadata: Metadata = {
     "meeting notes",
     "action items",
     "meeting follow-ups",
+    "decision register",
+    "leadership meeting records",
+    "decision accountability",
   ],
 
   icons: {
@@ -31,9 +34,9 @@ export const metadata: Metadata = {
   },
 
   openGraph: {
-    title: "G.H.O.S.T. | Your meetings leave. Their decisions don't.",
+    title: "G.H.O.S.T. | Your meetings end. Their decisions don't.",
     description:
-      "Gather. Highlight. Organize. Summarize. Track. Turn conversations into clear next steps.",
+      "Gather. Highlight. Organize. Summarize. Track. Turn leadership conversations into decision records, owners, deadlines and unresolved issues.",
     siteName: "G.H.O.S.T.",
     type: "website",
     images: [
@@ -46,8 +49,8 @@ export const metadata: Metadata = {
 
   twitter: {
     card: "summary",
-    title: "G.H.O.S.T. | Your meetings leave. Their decisions don't.",
-    description: "Your meetings leave. Their decisions don't.",
+    title: "G.H.O.S.T. | Your meetings end. Their decisions don't.",
+    description: "Your meetings end. Their decisions don't.",
     images: [ghostLogo.src],
   },
 };
