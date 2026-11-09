@@ -1,4 +1,3 @@
-
 import {
   styleInstructions,
   type AnalysisStyle,
@@ -214,11 +213,32 @@ LANGUAGE
 Write all Blueprint fields and follow-up drafts in:
 ${outputLanguage}
 
+The outputLanguage field in the JSON must contain exactly:
+${outputLanguage}
+
 Preserve names, product names, technical terminology and figures.
 Do not silently change the meaning of a statement.
+
 The source transcript remains in its original language.
-If the transcript contains multiple languages, interpret the full
-conversation rather than assuming one language throughout.
+Do not translate or rewrite the original transcript.
+
+Identify the language or languages actually present in the source:
+- originalLanguage: the primary language, if identifiable.
+- detectedLanguages: all clearly identifiable languages present.
+- If the language cannot be identified confidently, use an empty
+  originalLanguage string and an empty detectedLanguages array.
+
+If the conversation contains multiple languages, interpret the full
+conversation. Do not assume every speaker uses the same language.
+
+translatedTranscript:
+- Return a translation of the full transcript into ${outputLanguage}
+  only when the source transcript is not already in that language.
+- Preserve speaker labels and the meaning of each statement.
+- Do not omit disagreements, corrections, uncertainty or incomplete
+  statements.
+- If the source is already in ${outputLanguage}, return an empty string.
+- Never present a translation as the original transcript.
 
 STYLE
 
@@ -287,6 +307,7 @@ Use exactly this structure:
   "visualEvidence": [],
   "detectedLanguages": [],
   "originalLanguage": "string",
+  "outputLanguage": "${outputLanguage}",
   "translatedTranscript": "",
   "efficiencyMeter": {
     "meetingVolume": "string",
