@@ -1,4 +1,3 @@
-
 import type { MeetingResult } from "@/types/meeting";
 
 function timestamp(seconds: number): string {
@@ -144,7 +143,7 @@ export function buildBlueprintMarkdown(
     }
   }
 
-  if (item.originalLanguage || item.detectedLanguages?.length) {
+  if (item.originalLanguage || item.detectedLanguages?.length || item.outputLanguage) {
     lines.push(
       "## Language Information",
       "",
@@ -177,6 +176,8 @@ export function buildBlueprintMarkdown(
     if (item.translatedTranscript) {
       lines.push(
         "## Translated Transcript",
+        "",
+        `Translated into: ${item.outputLanguage || "the selected output language"}`,
         "",
         item.translatedTranscript,
         ""
