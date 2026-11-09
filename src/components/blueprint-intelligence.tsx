@@ -1,11 +1,9 @@
-
 "use client";
 
 import { useMemo, useState } from "react";
 import {
   AlertTriangle,
   CheckCircle2,
-  Clock3,
   FileText,
   Languages,
   Link2,
@@ -168,8 +166,10 @@ export default function BlueprintIntelligence({
   const decisionRecords = meeting.decisionRecords || [];
   const revisions = meeting.revisions || [];
   const visualEvidence = meeting.visualEvidence || [];
+
   const hasLanguageData =
     Boolean(meeting.originalLanguage) ||
+    Boolean(meeting.outputLanguage) ||
     Boolean(meeting.translatedTranscript) ||
     Boolean(meeting.detectedLanguages?.length);
 
@@ -221,9 +221,7 @@ export default function BlueprintIntelligence({
         </h4>
 
         <RevisionPanel
-          transcript={
-            meeting.correctedTranscript || meeting.transcript
-          }
+          transcript={meeting.transcript}
           revisions={revisions}
         />
       </section>
@@ -326,6 +324,12 @@ export default function BlueprintIntelligence({
               {meeting.detectedLanguages.join(", ")}
             </p>
           ) : null}
+
+          {meeting.outputLanguage && (
+            <p>
+              Blueprint language: {meeting.outputLanguage}
+            </p>
+          )}
 
           {meeting.translatedTranscript && (
             <>
