@@ -39,6 +39,8 @@ import {
   getAudioFileExtension,
   MAX_AUDIO_SIZE,
 } from "@/lib/audio";
+import { BlueprintIntelligence } from "@/components/blueprint-intelligence";
+import { buildBlueprintMarkdown } from "@/lib/blueprint-export";
 
 const STORE = "ghost-voice-meetings-v1";
 const MAX_TRANSCRIPT_LENGTH = 120_000;
@@ -93,25 +95,19 @@ export default function GhostApp() {
     try {
       const saved = localStorage.getItem(STORE);
       const loaded = loadMeetingHistory(saved);
-
       setMeetings(loaded);
 
       if (saved) {
         try {
           const parsed: unknown = JSON.parse(saved);
 
-          if (
-            !Array.isArray(parsed) ||
-            parsed.length !== loaded.length
-          ) {
+          if (!Array.isArray(parsed) || parsed.length !== loaded.length) {
             setNotice(
               "Some invalid saved records were skipped. Your valid history was retained."
             );
           }
         } catch {
-          setNotice(
-            "Saved meeting history was damaged and could not be loaded."
-          );
+          setNotice("Saved meeting history was damaged and could not be loaded.");
         }
       }
     } catch {
@@ -125,14 +121,9 @@ export default function GhostApp() {
     if (!hydrated) return;
 
     try {
-      localStorage.setItem(
-        STORE,
-        serializeMeetingHistory(meetings)
-      );
+      localStorage.setItem(STORE, serializeMeetingHistory(meetings));
     } catch {
-      setNotice(
-        "Browser storage is full. Export or delete older meetings."
-      );
+      setNotice("Browser storage is full. Export or delete older meetings.");
     }
   }, [meetings, hydrated]);
 
@@ -145,10 +136,7 @@ export default function GhostApp() {
         recorder.current.stop();
       }
 
-      captureStream.current
-        ?.getTracks()
-        .forEach((track) => track.stop());
-
+      captureStream.current?.getTracks().forEach((track) => track.stop());
       window.speechSynthesis?.cancel();
     };
   }, []);
@@ -162,7 +150,6 @@ export default function GhostApp() {
 
   function startTimer() {
     stopTimer();
-
     timer.current = setInterval(() => {
       setElapsed((value) => value + 1);
     }, 1000);
@@ -179,23 +166,17 @@ export default function GhostApp() {
     setNotice("");
 
     if (!consent) {
-      setError(
-        "Confirm that everyone involved knows recording is taking place."
-      );
+      setError("Confirm that everyone involved knows recording is taking place.");
       return;
     }
 
     if (!window.isSecureContext) {
-      setError(
-        "Microphone access requires a secure HTTPS connection."
-      );
+      setError("Microphone access requires a secure HTTPS connection.");
       return;
     }
 
     if (!navigator.mediaDevices || !window.MediaRecorder) {
-      setError(
-        "Recording is unavailable in this browser. Use transcript import."
-      );
+      setError("Recording is unavailable in this browser. Use transcript import.");
       return;
     }
 
@@ -212,9 +193,7 @@ export default function GhostApp() {
         });
       } else {
         if (!navigator.mediaDevices.getDisplayMedia) {
-          throw new Error(
-            "Tab audio capture is not supported by this browser."
-          );
+          throw new Error("Tab audio capture is not supported by this browser.");
         }
 
         stream = await navigator.mediaDevices.getDisplayMedia({
@@ -234,23 +213,16 @@ export default function GhostApp() {
       }
 
       if (audioTracks.every((track) => track.readyState !== "live")) {
-        throw new Error(
-          "The audio input is no longer active. Check your microphone and try again."
-        );
+        throw new Error("The audio input is no longer active. Check your input and try again.");
       }
 
       const audioStream = new MediaStream(audioTracks);
-
       const candidates = [
         "audio/webm;codecs=opus",
         "audio/webm",
         "audio/mp4",
       ];
-
-      const mime = candidates.find((item) =>
-        MediaRecorder.isTypeSupported(item)
-      );
-
+      const mime = candidates.find((item) => MediaRecorder.isTypeSupported(item));
       const mediaRecorder = new MediaRecorder(
         audioStream,
         mime ? { mimeType: mime } : undefined
@@ -264,21 +236,15 @@ export default function GhostApp() {
 
       mediaRecorder.ondataavailable = (event) => {
         if (!event.data.size) return;
-
         chunks.current.push(event.data);
 
-        const total = chunks.current.reduce(
-          (sum, chunk) => sum + chunk.size,
-          0
-        );
+        const total = chunks.current.reduce((sum, chunk) => sum + chunk.size, 0);
 
         if (total > MAX_AUDIO_SIZE) {
           exceededSize.current = true;
           setError("Recording reached the 4 MB upload limit.");
 
-          if (mediaRecorder.state !== "inactive") {
-            mediaRecorder.stop();
-          }
+          if (mediaRecorder.state !== "inactive") mediaRecorder.stop();
         }
       };
 
@@ -286,14 +252,11 @@ export default function GhostApp() {
         recordingFailed.current = true;
         stopTimer();
         setStatus("error");
-        setError(
-          "The browser encountered a recording error. Check microphone access and try again."
-        );
+        setError("The browser encountered a recording error. Check microphone access and try again.");
       };
 
       mediaRecorder.onstop = async () => {
         stopTimer();
-
         stream?.getTracks().forEach((track) => track.stop());
         captureStream.current = null;
         recorder.current = null;
@@ -307,23 +270,18 @@ export default function GhostApp() {
         if (exceededSize.current) {
           chunks.current = [];
           setStatus("error");
-          setError(
-            "The recording exceeded the 4 MB upload limit. Record a shorter segment."
-          );
+          setError("The recording exceeded the 4 MB upload limit. Record a shorter segment.");
           return;
         }
 
         const blob = new Blob(chunks.current, {
           type: mediaRecorder.mimeType || mime || "audio/webm",
         });
-
         chunks.current = [];
 
         if (blob.size < 1000) {
           setStatus("error");
-          setError(
-            "No usable audio was captured. Check your microphone input and record again."
-          );
+          setError("No usable audio was captured. Check your microphone input and record again.");
           return;
         }
 
@@ -332,14 +290,11 @@ export default function GhostApp() {
 
       if (mode === "tab") {
         stream.getVideoTracks()[0]?.addEventListener("ended", () => {
-          if (mediaRecorder.state !== "inactive") {
-            mediaRecorder.stop();
-          }
+          if (mediaRecorder.state !== "inactive") mediaRecorder.stop();
         });
       }
 
       mediaRecorder.start(1000);
-
       setElapsed(0);
       setStatus("recording");
       startTimer();
@@ -349,12 +304,7 @@ export default function GhostApp() {
       captureStream.current = null;
       recorder.current = null;
       setStatus("error");
-
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Recording could not be started."
-      );
+      setError(err instanceof Error ? err.message : "Recording could not be started.");
     }
   }
 
@@ -387,9 +337,7 @@ export default function GhostApp() {
   async function processAudio(blob: Blob) {
     if (blob.size < 1000 || blob.size > MAX_AUDIO_SIZE) {
       setStatus("error");
-      setError(
-        "The recording is empty or exceeds the 4 MB upload limit."
-      );
+      setError("The recording is empty or exceeds the 4 MB upload limit.");
       return;
     }
 
@@ -400,19 +348,13 @@ export default function GhostApp() {
     try {
       const extension = getAudioFileExtension(blob.type);
       const form = new FormData();
-
-      form.append(
-        "audio",
-        blob,
-        `ghost-recording.${extension}`
-      );
+      form.append("audio", blob, `ghost-recording.${extension}`);
 
       const response = await fetch("/api/transcribe", {
         method: "POST",
         body: form,
         cache: "no-store",
       });
-
       const result = await readJson(response);
 
       if (
@@ -423,25 +365,16 @@ export default function GhostApp() {
         typeof result.transcript !== "string" ||
         !result.transcript.trim()
       ) {
-        throw new Error(
-          getApiError(result, "Transcription failed.")
-        );
+        throw new Error(getApiError(result, "Transcription failed."));
       }
 
       setTranscript(result.transcript);
       setManualOpen(true);
       setStatus("idle");
-      setNotice(
-        "Transcript ready. Review it before creating your Blueprint."
-      );
+      setNotice("Transcript ready. Review it before creating your Blueprint.");
     } catch (err) {
       setStatus("error");
-
-      setError(
-        err instanceof Error
-          ? err.message
-          : "The recording could not be processed."
-      );
+      setError(err instanceof Error ? err.message : "The recording could not be processed.");
     }
   }
 
@@ -450,17 +383,13 @@ export default function GhostApp() {
 
     if (cleanTranscript.length < 30) {
       setStatus("error");
-      setError(
-        "Add a longer transcript before creating a Blueprint."
-      );
+      setError("Add a longer transcript before creating a Blueprint.");
       return;
     }
 
     if (cleanTranscript.length > MAX_TRANSCRIPT_LENGTH) {
       setStatus("error");
-      setError(
-        "This transcript is too long. Shorten it to 120,000 characters or fewer."
-      );
+      setError("This transcript is too long. Shorten it to 120,000 characters or fewer.");
       return;
     }
 
@@ -477,6 +406,7 @@ export default function GhostApp() {
           transcript: cleanTranscript,
           style,
           title: title.trim() || "Untitled meeting",
+          outputLanguage: "English",
         }),
       });
 
@@ -490,12 +420,7 @@ export default function GhostApp() {
         typeof startResult.interactionId !== "string" ||
         !startResult.interactionId
       ) {
-        throw new Error(
-          getApiError(
-            startResult,
-            "G.H.O.S.T. could not start the analysis."
-          )
-        );
+        throw new Error(getApiError(startResult, "G.H.O.S.T. could not start the analysis."));
       }
 
       const interactionId = startResult.interactionId;
@@ -503,27 +428,16 @@ export default function GhostApp() {
       const maxAttempts = 120;
 
       for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
-        await new Promise((resolve) =>
-          window.setTimeout(resolve, 2000)
-        );
+        await new Promise((resolve) => window.setTimeout(resolve, 2000));
 
         const pollResponse = await fetch(
           `/api/analyze?id=${encodeURIComponent(interactionId)}`,
-          {
-            method: "GET",
-            cache: "no-store",
-          }
+          { method: "GET", cache: "no-store" }
         );
-
         const pollResult = await readJson(pollResponse);
 
         if (!pollResponse.ok) {
-          throw new Error(
-            getApiError(
-              pollResult,
-              "G.H.O.S.T. could not retrieve the analysis."
-            )
-          );
+          throw new Error(getApiError(pollResult, "G.H.O.S.T. could not retrieve the analysis."));
         }
 
         if (
@@ -532,38 +446,23 @@ export default function GhostApp() {
           !("status" in pollResult) ||
           typeof pollResult.status !== "string"
         ) {
-          throw new Error(
-            "The analysis service returned an invalid status."
-          );
+          throw new Error("The analysis service returned an invalid status.");
         }
 
         if (pollResult.status === "failed") {
-          throw new Error(
-            getApiError(
-              pollResult,
-              "G.H.O.S.T. could not complete the analysis."
-            )
-          );
+          throw new Error(getApiError(pollResult, "G.H.O.S.T. could not complete the analysis."));
         }
 
         if (pollResult.status === "completed") {
-          if (
-            !("analysis" in pollResult) ||
-            !isAnalysisPayload(pollResult.analysis)
-          ) {
-            throw new Error(
-              "The analysis service returned an incomplete Blueprint."
-            );
+          if (!("analysis" in pollResult) || !isAnalysisPayload(pollResult.analysis)) {
+            throw new Error("The analysis service returned an incomplete Blueprint.");
           }
-
           analysis = pollResult.analysis;
           break;
         }
 
         if (pollResult.status !== "processing") {
-          throw new Error(
-            "The analysis service returned an unknown status."
-          );
+          throw new Error("The analysis service returned an unknown status.");
         }
 
         if (attempt > 0 && attempt % 10 === 0) {
@@ -572,9 +471,7 @@ export default function GhostApp() {
       }
 
       if (!analysis) {
-        throw new Error(
-          "Analysis timed out. Your transcript is still available. Please retry."
-        );
+        throw new Error("Analysis timed out. Your transcript is still available. Please retry.");
       }
 
       const result: MeetingResult = {
@@ -593,14 +490,22 @@ export default function GhostApp() {
         followUp: analysis.clientFollowUp.body,
         transcript: cleanTranscript,
         createdAt: new Date().toISOString(),
+
+        decisionRecords: analysis.decisionRecords ?? [],
+        revisions: analysis.revisions ?? [],
+        correctedTranscript: analysis.correctedTranscript ?? cleanTranscript,
+        visualEvidence: analysis.visualEvidence ?? [],
+        detectedLanguages: analysis.detectedLanguages ?? [],
+        originalLanguage: analysis.originalLanguage ?? "",
+        outputLanguage: analysis.outputLanguage ?? "English",
+        translatedTranscript: analysis.translatedTranscript ?? "",
+        processingVersion: "2",
       };
 
       result.spokenSummary = makeSpokenSummary(result);
 
       if (!isMeetingResult(result)) {
-        throw new Error(
-          "The generated Blueprint did not pass validation."
-        );
+        throw new Error("The generated Blueprint did not pass validation.");
       }
 
       setActive(result);
@@ -617,12 +522,9 @@ export default function GhostApp() {
       setError("");
       setNotice("Your meeting Blueprint is ready.");
 
-      if (result.spokenSummary) {
-        speak(result.spokenSummary);
-      }
+      if (result.spokenSummary) speak(result.spokenSummary);
     } catch (err) {
       setStatus("error");
-
       setError(
         err instanceof Error
           ? err.message
@@ -633,20 +535,16 @@ export default function GhostApp() {
 
   function speak(text: string) {
     if (!window.speechSynthesis) {
-      setNotice(
-        "Speech playback is unavailable in this browser."
-      );
+      setNotice("Speech playback is unavailable in this browser.");
       return;
     }
 
     window.speechSynthesis.cancel();
-
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.rate = 1.02;
     utterance.onstart = () => setPlaying(true);
     utterance.onend = () => setPlaying(false);
     utterance.onerror = () => setPlaying(false);
-
     window.speechSynthesis.speak(utterance);
   }
 
@@ -664,84 +562,14 @@ export default function GhostApp() {
     }
   }
 
-  function exportMeeting(
-    item: MeetingResult,
-    includeTranscript = false
-  ) {
-    const lines = [
-      "# G.H.O.S.T. Meeting Blueprint",
-      "",
-      `# ${item.title}`,
-      "",
-      new Date(item.createdAt).toLocaleString(),
-      "",
-      "## Meeting Summary",
-      item.summary,
-      "",
-      "## Objective",
-      item.objective,
-      "",
-      "## Friction",
-      item.friction,
-      "",
-      "## Alignment",
-      item.alignment,
-      "",
-      "## Confirmed Decisions",
-      ...(item.decisions.length
-        ? item.decisions.map((decision) => `- ${decision}`)
-        : ["- No confirmed decisions identified."]),
-      "",
-      "## Action Items",
-      ...(item.actionItems.length
-        ? item.actionItems.map(
-            (action) =>
-              `- [ ] ${action.task} | Owner: ${action.owner} | Due: ${action.due}`
-          )
-        : ["- No clear action items identified."]),
-      "",
-      "## Efficiency Meter",
-      `- Transcript volume: ${item.efficiencyMeter.meetingVolume}`,
-      `- Estimated actionable velocity: ${item.efficiencyMeter.actionableVelocityPercent}%`,
-      `- Estimated non-actionable content: ${item.efficiencyMeter.corporateNoiseFilteredPercent}%`,
-      item.efficiencyMeter.methodology,
-      "",
-      "## Executive Blueprint",
-      `Subject: ${item.executiveFollowUp.subject}`,
-      item.executiveFollowUp.body,
-      "",
-      "## Client-Facing Delight",
-      `Subject: ${item.clientFollowUp.subject}`,
-      item.clientFollowUp.body,
-      "",
-      "## Team-Hustle Pulse",
-      `Subject: ${item.teamFollowUp.subject}`,
-      item.teamFollowUp.body,
-    ];
-
-    if (includeTranscript) {
-      lines.push(
-        "",
-        "---",
-        "",
-        "## Original Transcript",
-        "",
-        item.transcript
-      );
-    }
-
-    const blob = new Blob([lines.join("\n")], {
-      type: "text/markdown;charset=utf-8",
-    });
-
+  function exportMeeting(item: MeetingResult, includeTranscript = false) {
+    const markdown = buildBlueprintMarkdown(item, includeTranscript);
+    const blob = new Blob([markdown], { type: "text/markdown;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
 
     link.href = url;
-    link.download = `${safeFilename(item.title)}${
-      includeTranscript ? "-with-transcript" : ""
-    }.md`;
-
+    link.download = `${safeFilename(item.title)}${includeTranscript ? "-with-transcript" : ""}.md`;
     document.body.appendChild(link);
     link.click();
     link.remove();
@@ -751,15 +579,10 @@ export default function GhostApp() {
 
   function removeMeeting(item: MeetingResult) {
     setMeetings((previous) =>
-      previous.filter(
-        (meeting) => meeting.createdAt !== item.createdAt
-      )
+      previous.filter((meeting) => meeting.createdAt !== item.createdAt)
     );
 
-    if (active?.createdAt === item.createdAt) {
-      setActive(null);
-    }
-
+    if (active?.createdAt === item.createdAt) setActive(null);
     setNotice("Meeting deleted from this browser.");
   }
 
@@ -785,11 +608,7 @@ export default function GhostApp() {
               width={34}
               height={34}
               priority
-              style={{
-                width: 34,
-                height: 34,
-                objectFit: "contain",
-              }}
+              style={{ width: 34, height: 34, objectFit: "contain" }}
             />
           </span>
           <span>
@@ -832,13 +651,9 @@ export default function GhostApp() {
 
       <section className="workspace">
         <div className="capture-panel">
-          <div className="section-kicker">
-            01 / CAPTURE THE CONVERSATION
-          </div>
+          <div className="section-kicker">01 / CAPTURE THE CONVERSATION</div>
 
-          <label className="field-label" htmlFor="meeting-title">
-            Meeting title
-          </label>
+          <label className="field-label" htmlFor="meeting-title">Meeting title</label>
           <input
             id="meeting-title"
             className="text-input"
@@ -847,27 +662,19 @@ export default function GhostApp() {
             onChange={(event) => setTitle(event.target.value)}
           />
 
-          <label className="field-label" htmlFor="writing-style">
-            Follow-up writing style
-          </label>
+          <label className="field-label" htmlFor="writing-style">Follow-up writing style</label>
           <select
             id="writing-style"
             className="text-input"
             value={style}
-            onChange={(event) =>
-              setStyle(event.target.value as VoiceStyle)
-            }
+            onChange={(event) => setStyle(event.target.value as VoiceStyle)}
           >
             {Object.entries(styleNames).map(([key, value]) => (
-              <option key={key} value={key}>
-                {value}
-              </option>
+              <option key={key} value={key}>{value}</option>
             ))}
           </select>
 
-          <div className="capture-title">
-            Choose your recording source
-          </div>
+          <div className="capture-title">Choose your recording source</div>
 
           <div style={{ display: "flex", gap: 8 }}>
             <button
@@ -891,9 +698,7 @@ export default function GhostApp() {
 
           <div className={`record-visual ${status}`}>
             <AudioLines size={34} />
-            <div className="record-time">
-              {formatTime(elapsed)}
-            </div>
+            <div className="record-time">{formatTime(elapsed)}</div>
             <div className="record-caption">{statusLabel}</div>
           </div>
 
@@ -904,18 +709,17 @@ export default function GhostApp() {
               onChange={(event) => setConsent(event.target.checked)}
             />
             <span>
-              I confirm that everyone involved knows recording is taking
-              place and that I have obtained any required consent.
+              I confirm that everyone involved knows recording is taking place
+              and that I have obtained any required consent.
             </span>
           </label>
 
           <div className="capture-note">
             <ShieldCheck size={15} />
             <span>
-              Audio and transcripts are sent to Google Gemini for
-              processing. Do not submit confidential conversations unless
-              you have permission and have reviewed the provider&apos;s
-              data terms.
+              Audio and transcripts are sent to Google Gemini for processing.
+              Do not submit confidential conversations unless you have
+              permission and have reviewed the provider&apos;s data terms.
             </span>
           </div>
 
@@ -953,11 +757,7 @@ export default function GhostApp() {
               onClick={startRecording}
               disabled={busy || !consent}
             >
-              {mode === "microphone" ? (
-                <Mic size={17} />
-              ) : (
-                <Radio size={17} />
-              )}
+              {mode === "microphone" ? <Mic size={17} /> : <Radio size={17} />}
               {busy ? "Processing conversation..." : "Start recording"}
             </button>
           )}
@@ -965,9 +765,8 @@ export default function GhostApp() {
           <div className="capture-note">
             <CircleHelp size={15} />
             <span>
-              Tab capture requires a supported browser and the Share tab
-              audio permission. G.H.O.S.T. does not directly intercept
-              cellular calls.
+              Tab capture requires a supported browser and the Share tab audio
+              permission. G.H.O.S.T. does not directly intercept cellular calls.
             </span>
           </div>
 
@@ -984,9 +783,7 @@ export default function GhostApp() {
 
           {manualOpen && (
             <div className="manual-entry">
-              <label htmlFor="manual-transcript">
-                Review or edit your transcript
-              </label>
+              <label htmlFor="manual-transcript">Review or edit your transcript</label>
               <textarea
                 id="manual-transcript"
                 value={transcript}
@@ -997,9 +794,7 @@ export default function GhostApp() {
               />
               <button
                 className="secondary-button"
-                disabled={
-                  busy || transcript.trim().length < 30
-                }
+                disabled={busy || transcript.trim().length < 30}
                 onClick={() => analyze(transcript)}
               >
                 Create my Meeting Blueprint
@@ -1024,180 +819,110 @@ export default function GhostApp() {
               <h2>What matters now.</h2>
               <p>Your conversation, minus the mental replay.</p>
             </div>
-            <span className="result-count">
-              {meetings.length} SAVED
-            </span>
+            <span className="result-count">{meetings.length} SAVED</span>
           </div>
 
           {active ? (
             <div className="brief">
               <div className="brief-top">
                 <div>
-                  <span className="brief-label">
-                    G.H.O.S.T. MEETING BLUEPRINT
-                  </span>
+                  <span className="brief-label">G.H.O.S.T. MEETING BLUEPRINT</span>
                   <h3>{active.title}</h3>
-                  <p className="brief-date">
-                    {new Date(active.createdAt).toLocaleString()}
-                  </p>
+                  <p className="brief-date">{new Date(active.createdAt).toLocaleString()}</p>
                 </div>
               </div>
 
               <div className="spoken-card">
                 <div className="spoken-head">
-                  <span>
-                    <Volume2 size={15} /> THE SPOKEN SUMMARY
-                  </span>
+                  <span><Volume2 size={15} /> THE SPOKEN SUMMARY</span>
                   <button
-                    onClick={() =>
-                      playing
-                        ? stopSpeech()
-                        : speak(active.spokenSummary)
-                    }
-                    aria-label={
-                      playing ? "Stop summary" : "Play summary"
-                    }
+                    onClick={() => playing ? stopSpeech() : speak(active.spokenSummary)}
+                    aria-label={playing ? "Stop summary" : "Play summary"}
                   >
-                    {playing ? (
-                      <Pause size={16} />
-                    ) : (
-                      <Play size={16} />
-                    )}
+                    {playing ? <Pause size={16} /> : <Play size={16} />}
                   </button>
                 </div>
-
                 <p>{active.summary}</p>
-
                 <div className="spoken-footer">
-                  <span>
-                    {playing ? "SPEAKING NOW" : "READY TO PLAY"}
-                  </span>
+                  <span>{playing ? "SPEAKING NOW" : "READY TO PLAY"}</span>
                   <span>G.H.O.S.T.</span>
                 </div>
               </div>
 
               <div className="brief-section">
                 <h4>MEETING OUTCOME</h4>
-                <p>
-                  <b>Objective</b>
-                  <br />
-                  {active.objective}
-                </p>
-                <p>
-                  <b>Friction</b>
-                  <br />
-                  {active.friction}
-                </p>
-                <p>
-                  <b>Alignment</b>
-                  <br />
-                  {active.alignment}
-                </p>
+                <p><b>Objective</b><br />{active.objective}</p>
+                <p><b>Friction</b><br />{active.friction}</p>
+                <p><b>Alignment</b><br />{active.alignment}</p>
               </div>
 
               <div className="brief-section">
                 <h4>G.H.O.S.T. EFFICIENCY METER</h4>
-
                 <div className="metrics-grid">
                   <div className="metric-card">
-                    <strong className="metric-volume">
-                      {active.efficiencyMeter.meetingVolume}
-                    </strong>
+                    <strong className="metric-volume">{active.efficiencyMeter.meetingVolume}</strong>
                     <small>TRANSCRIPT VOLUME</small>
                   </div>
-
                   <div className="metric-card">
-                    <strong>
-                      {active.efficiencyMeter.actionableVelocityPercent}%
-                    </strong>
+                    <strong>{active.efficiencyMeter.actionableVelocityPercent}%</strong>
                     <small>EST. ACTIONABLE VELOCITY</small>
                   </div>
-
                   <div className="metric-card">
-                    <strong>
-                      {active.efficiencyMeter.corporateNoiseFilteredPercent}%
-                    </strong>
+                    <strong>{active.efficiencyMeter.corporateNoiseFilteredPercent}%</strong>
                     <small>EST. NON-ACTIONABLE</small>
                   </div>
                 </div>
-
                 <p className="muted metric-disclaimer">
-                  Estimates based on transcript content, not measured
-                  meeting time. These are directional indicators, not
-                  audited metrics.
+                  Estimates based on transcript content, not measured meeting
+                  time. These are directional indicators, not audited metrics.
                 </p>
-
-                <p className="muted metric-method">
-                  {active.efficiencyMeter.methodology}
-                </p>
+                <p className="muted metric-method">{active.efficiencyMeter.methodology}</p>
               </div>
 
               <div className="brief-section">
-                <h4>
-                  <Check size={15} /> CONFIRMED DECISIONS
-                </h4>
-
+                <h4><Check size={15} /> CONFIRMED DECISIONS</h4>
                 {active.decisions.length ? (
                   <ul>
-                    {active.decisions.map((decision, index) => (
-                      <li key={index}>{decision}</li>
-                    ))}
+                    {active.decisions.map((decision, index) => <li key={index}>{decision}</li>)}
                   </ul>
                 ) : (
-                  <p className="muted">
-                    No confirmed decisions identified.
-                  </p>
+                  <p className="muted">No confirmed decisions identified.</p>
                 )}
               </div>
 
               <div className="brief-section">
-                <h4>
-                  <ArrowDownToLine size={15} /> ACTION ITEMS
-                </h4>
-
+                <h4><ArrowDownToLine size={15} /> ACTION ITEMS</h4>
                 {active.actionItems.length ? (
                   <ul className="actions-list">
                     {active.actionItems.map((action, index) => (
                       <li key={index}>
                         <span>{action.task}</span>
-                        <small>
-                          {action.owner} · {action.due}
-                        </small>
+                        <small>{action.owner} · {action.due}</small>
                       </li>
                     ))}
                   </ul>
                 ) : (
-                  <p className="muted">
-                    No clear action items identified.
-                  </p>
+                  <p className="muted">No clear action items identified.</p>
                 )}
               </div>
+
+              <BlueprintIntelligence meeting={active} />
 
               {([
                 ["EXECUTIVE BLUEPRINT", active.executiveFollowUp],
                 ["CLIENT-FACING DELIGHT", active.clientFollowUp],
                 ["TEAM-HUSTLE PULSE", active.teamFollowUp],
               ] as const).map(([label, draft]) => (
-                <div
-                  className="brief-section followup"
-                  key={label}
-                >
+                <div className="brief-section followup" key={label}>
                   <div className="follow-head">
-                    <h4>
-                      <FileText size={15} /> {label}
-                    </h4>
+                    <h4><FileText size={15} /> {label}</h4>
                     <button
                       className="mini-action"
-                      onClick={() =>
-                        copy(
-                          `Subject: ${draft.subject}\n\n${draft.body}`
-                        )
-                      }
+                      onClick={() => copy(`Subject: ${draft.subject}\n\n${draft.body}`)}
                     >
                       <Copy size={13} /> Copy
                     </button>
                   </div>
-
                   <strong>{draft.subject}</strong>
                   <p>{draft.body}</p>
                 </div>
@@ -1206,38 +931,24 @@ export default function GhostApp() {
               <div className="brief-section">
                 <div className="follow-head">
                   <h4>ORIGINAL TRANSCRIPT</h4>
-                  <button
-                    className="mini-action"
-                    onClick={() => copy(active.transcript)}
-                  >
+                  <button className="mini-action" onClick={() => copy(active.transcript)}>
                     <Copy size={13} /> Copy
                   </button>
                 </div>
-
                 <details>
                   <summary>Show original transcript</summary>
-                  <p className="transcript-text">
-                    {active.transcript}
-                  </p>
+                  <p className="transcript-text">{active.transcript}</p>
                 </details>
               </div>
 
               <div className="brief-section">
                 <h4>EXPORT BLUEPRINT</h4>
-
                 <div className="export-actions">
-                  <button
-                    className="secondary-button"
-                    onClick={() => exportMeeting(active, false)}
-                  >
+                  <button className="secondary-button" onClick={() => exportMeeting(active, false)}>
                     <ArrowDownToLine size={15} />
                     Blueprint (.md)
                   </button>
-
-                  <button
-                    className="secondary-button"
-                    onClick={() => exportMeeting(active, true)}
-                  >
+                  <button className="secondary-button" onClick={() => exportMeeting(active, true)}>
                     <ArrowDownToLine size={15} />
                     Blueprint + Transcript (.md)
                   </button>
@@ -1245,37 +956,24 @@ export default function GhostApp() {
               </div>
 
               <div className="brief-foot">
-                <button
-                  className="text-action"
-                  onClick={() => setActive(null)}
-                >
+                <button className="text-action" onClick={() => setActive(null)}>
                   Close brief
                 </button>
-
-                <button
-                  className="text-action danger-action"
-                  onClick={() => removeMeeting(active)}
-                >
+                <button className="text-action danger-action" onClick={() => removeMeeting(active)}>
                   <Trash2 size={14} /> Delete
                 </button>
               </div>
             </div>
           ) : (
             <div className="empty-state">
-              <div className="empty-icon">
-                <AudioLines size={26} />
-              </div>
+              <div className="empty-icon"><AudioLines size={26} /></div>
               <h3>Nothing gets lost here.</h3>
               <p>
                 Capture your next conversation. G.H.O.S.T. will organise
                 the summary, decisions and follow-up here.
               </p>
-              <span className="next-step-desktop">
-                YOUR NEXT STEP IS ON THE LEFT ↖
-              </span>
-              <span className="next-step-mobile">
-                YOUR NEXT STEP IS ABOVE ↑
-              </span>
+              <span className="next-step-desktop">YOUR NEXT STEP IS ON THE LEFT ↖</span>
+              <span className="next-step-mobile">YOUR NEXT STEP IS ABOVE ↑</span>
             </div>
           )}
 
@@ -1288,33 +986,20 @@ export default function GhostApp() {
 
               {meetings.slice(0, 5).map((meeting) => (
                 <button
-                  className={`history-row ${
-                    active?.createdAt === meeting.createdAt
-                      ? "selected"
-                      : ""
-                  }`}
+                  className={`history-row ${active?.createdAt === meeting.createdAt ? "selected" : ""}`}
                   key={meeting.createdAt}
                   onClick={() => setActive(meeting)}
                 >
-                  <span className="history-icon">
-                    <FileText size={15} />
-                  </span>
-
+                  <span className="history-icon"><FileText size={15} /></span>
                   <span className="history-name">
                     <b>{meeting.title}</b>
                     <small>
-                      {new Date(
-                        meeting.createdAt
-                      ).toLocaleDateString()}
+                      {new Date(meeting.createdAt).toLocaleDateString()}
                       {" · "}
                       {meeting.actionItems.length} actions
                     </small>
                   </span>
-
-                  <ChevronDown
-                    size={15}
-                    className="history-arrow"
-                  />
+                  <ChevronDown size={15} className="history-arrow" />
                 </button>
               ))}
             </div>
@@ -1325,28 +1010,21 @@ export default function GhostApp() {
       <footer className="footer">
         <div className="footer-brand">
           G.H.O.S.T.
-          <span>
-            DON&apos;T LET THE IMPORTANT PART DISAPPEAR.
-          </span>
+          <span>DON&apos;T LET THE IMPORTANT PART DISAPPEAR.</span>
         </div>
-
         <p>
           Record only with everyone&apos;s knowledge and consent.
-          Recording laws and workplace policies vary. Verify
-          AI-generated decisions and commitments before acting.
-          Audio and transcript content are processed by Google Gemini.
+          Recording laws and workplace policies vary. Verify AI-generated
+          decisions and commitments before acting. Audio and transcript
+          content are processed by Google Gemini.
         </p>
-
         <span className="version">EARLY ACCESS BUILD · 04</span>
       </footer>
 
       {notice && (
         <div className="toast" role="status">
           {notice}
-          <button
-            onClick={() => setNotice("")}
-            aria-label="Dismiss notification"
-          >
+          <button onClick={() => setNotice("")} aria-label="Dismiss notification">
             <X size={14} />
           </button>
         </div>
