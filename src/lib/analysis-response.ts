@@ -1,4 +1,3 @@
-
 import type {
   ActionItem,
   DecisionRecord,
@@ -30,6 +29,7 @@ export type AnalysisPayload = {
   visualEvidence?: VisualEvidence[];
   detectedLanguages?: string[];
   originalLanguage?: string;
+  outputLanguage?: string;
   translatedTranscript?: string;
 };
 
@@ -285,6 +285,7 @@ export function isAnalysisPayload(
   for (const field of [
     "correctedTranscript",
     "originalLanguage",
+    "outputLanguage",
     "translatedTranscript",
   ]) {
     if (!isOptionalString(value[field])) return false;
