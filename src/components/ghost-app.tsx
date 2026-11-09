@@ -35,9 +35,12 @@ import {
   loadMeetingHistory,
   serializeMeetingHistory,
 } from "@/lib/meeting-storage";
+import {
+  getAudioFileExtension,
+  MAX_AUDIO_SIZE,
+} from "@/lib/audio";
 
 const STORE = "ghost-voice-meetings-v1";
-const MAX_AUDIO_SIZE = 4 * 1024 * 1024;
 const MAX_TRANSCRIPT_LENGTH = 120_000;
 
 type CaptureMode = "microphone" | "tab";
@@ -81,6 +84,7 @@ export default function GhostApp() {
   const chunks = useRef<Blob[]>([]);
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
   const exceededSize = useRef(false);
+  const recordingFailed = useRef(false);
 
   const busy = status === "processing";
   const recording = status === "recording" || status === "paused";
@@ -105,7 +109,9 @@ export default function GhostApp() {
             );
           }
         } catch {
-          setNotice("Saved meeting history was damaged and could not be loaded.");
+          setNotice(
+            "Saved meeting history was damaged and could not be loaded."
+          );
         }
       }
     } catch {
@@ -124,7 +130,9 @@ export default function GhostApp() {
         serializeMeetingHistory(meetings)
       );
     } catch {
-      setNotice("Browser storage is full. Export or delete older meetings.");
+      setNotice(
+        "Browser storage is full. Export or delete older meetings."
+      );
     }
   }, [meetings, hydrated]);
 
@@ -137,7 +145,10 @@ export default function GhostApp() {
         recorder.current.stop();
       }
 
-      captureStream.current?.getTracks().forEach((track) => track.stop());
+      captureStream.current
+        ?.getTracks()
+        .forEach((track) => track.stop());
+
       window.speechSynthesis?.cancel();
     };
   }, []);
@@ -174,6 +185,13 @@ export default function GhostApp() {
       return;
     }
 
+    if (!window.isSecureContext) {
+      setError(
+        "Microphone access requires a secure HTTPS connection."
+      );
+      return;
+    }
+
     if (!navigator.mediaDevices || !window.MediaRecorder) {
       setError(
         "Recording is unavailable in this browser. Use transcript import."
@@ -203,18 +221,30 @@ export default function GhostApp() {
           video: true,
           audio: true,
         });
-
-        if (!stream.getAudioTracks().length) {
-          throw new Error("No tab audio received. Enable Share tab audio.");
-        }
       }
 
-      const audioStream = new MediaStream(stream.getAudioTracks());
+      const audioTracks = stream.getAudioTracks();
+
+      if (!audioTracks.length) {
+        throw new Error(
+          mode === "tab"
+            ? "No tab audio received. Enable Share tab audio."
+            : "The browser did not provide a microphone audio track."
+        );
+      }
+
+      if (audioTracks.every((track) => track.readyState !== "live")) {
+        throw new Error(
+          "The audio input is no longer active. Check your microphone and try again."
+        );
+      }
+
+      const audioStream = new MediaStream(audioTracks);
 
       const candidates = [
         "audio/webm;codecs=opus",
-        "audio/mp4",
         "audio/webm",
+        "audio/mp4",
       ];
 
       const mime = candidates.find((item) =>
@@ -230,6 +260,7 @@ export default function GhostApp() {
       recorder.current = mediaRecorder;
       chunks.current = [];
       exceededSize.current = false;
+      recordingFailed.current = false;
 
       mediaRecorder.ondataavailable = (event) => {
         if (!event.data.size) return;
@@ -252,19 +283,33 @@ export default function GhostApp() {
       };
 
       mediaRecorder.onerror = () => {
+        recordingFailed.current = true;
+        stopTimer();
         setStatus("error");
-        setError("The browser encountered a recording error.");
+        setError(
+          "The browser encountered a recording error. Check microphone access and try again."
+        );
       };
 
       mediaRecorder.onstop = async () => {
         stopTimer();
+
         stream?.getTracks().forEach((track) => track.stop());
         captureStream.current = null;
         recorder.current = null;
 
+        if (recordingFailed.current) {
+          chunks.current = [];
+          setStatus("error");
+          return;
+        }
+
         if (exceededSize.current) {
           chunks.current = [];
           setStatus("error");
+          setError(
+            "The recording exceeded the 4 MB upload limit. Record a shorter segment."
+          );
           return;
         }
 
@@ -273,6 +318,15 @@ export default function GhostApp() {
         });
 
         chunks.current = [];
+
+        if (blob.size < 1000) {
+          setStatus("error");
+          setError(
+            "No usable audio was captured. Check your microphone input and record again."
+          );
+          return;
+        }
+
         await processAudio(blob);
       };
 
@@ -285,6 +339,7 @@ export default function GhostApp() {
       }
 
       mediaRecorder.start(1000);
+
       setElapsed(0);
       setStatus("recording");
       startTimer();
@@ -292,6 +347,7 @@ export default function GhostApp() {
     } catch (err) {
       stream?.getTracks().forEach((track) => track.stop());
       captureStream.current = null;
+      recorder.current = null;
       setStatus("error");
 
       setError(
@@ -331,7 +387,9 @@ export default function GhostApp() {
   async function processAudio(blob: Blob) {
     if (blob.size < 1000 || blob.size > MAX_AUDIO_SIZE) {
       setStatus("error");
-      setError("The recording is empty or exceeds the 4 MB upload limit.");
+      setError(
+        "The recording is empty or exceeds the 4 MB upload limit."
+      );
       return;
     }
 
@@ -340,14 +398,19 @@ export default function GhostApp() {
     setNotice("Transcribing your conversation...");
 
     try {
-      const extension = blob.type.includes("mp4") ? "mp4" : "webm";
+      const extension = getAudioFileExtension(blob.type);
       const form = new FormData();
 
-      form.append("audio", blob, `ghost-recording.${extension}`);
+      form.append(
+        "audio",
+        blob,
+        `ghost-recording.${extension}`
+      );
 
       const response = await fetch("/api/transcribe", {
         method: "POST",
         body: form,
+        cache: "no-store",
       });
 
       const result = await readJson(response);
@@ -387,7 +450,9 @@ export default function GhostApp() {
 
     if (cleanTranscript.length < 30) {
       setStatus("error");
-      setError("Add a longer transcript before creating a Blueprint.");
+      setError(
+        "Add a longer transcript before creating a Blueprint."
+      );
       return;
     }
 
@@ -438,11 +503,16 @@ export default function GhostApp() {
       const maxAttempts = 120;
 
       for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
-        await new Promise((resolve) => window.setTimeout(resolve, 2000));
+        await new Promise((resolve) =>
+          window.setTimeout(resolve, 2000)
+        );
 
         const pollResponse = await fetch(
           `/api/analyze?id=${encodeURIComponent(interactionId)}`,
-          { method: "GET", cache: "no-store" }
+          {
+            method: "GET",
+            cache: "no-store",
+          }
         );
 
         const pollResult = await readJson(pollResponse);
@@ -462,7 +532,9 @@ export default function GhostApp() {
           !("status" in pollResult) ||
           typeof pollResult.status !== "string"
         ) {
-          throw new Error("The analysis service returned an invalid status.");
+          throw new Error(
+            "The analysis service returned an invalid status."
+          );
         }
 
         if (pollResult.status === "failed") {
@@ -533,7 +605,16 @@ export default function GhostApp() {
 
       setActive(result);
       setMeetings((previous) => [result, ...previous]);
+
+      // Clear the capture workspace only after the Blueprint is valid.
+      setTranscript("");
+      setManualOpen(false);
+      setElapsed(0);
+      setTitle("Quick conversation");
+      setConsent(false);
+
       setStatus("idle");
+      setError("");
       setNotice("Your meeting Blueprint is ready.");
 
       if (result.spokenSummary) {
@@ -552,7 +633,9 @@ export default function GhostApp() {
 
   function speak(text: string) {
     if (!window.speechSynthesis) {
-      setNotice("Speech playback is unavailable in this browser.");
+      setNotice(
+        "Speech playback is unavailable in this browser."
+      );
       return;
     }
 
@@ -1187,7 +1270,12 @@ export default function GhostApp() {
                 Capture your next conversation. G.H.O.S.T. will organise
                 the summary, decisions and follow-up here.
               </p>
-              <span>YOUR NEXT STEP IS ON THE LEFT ↖</span>
+              <span className="next-step-desktop">
+                YOUR NEXT STEP IS ON THE LEFT ↖
+              </span>
+              <span className="next-step-mobile">
+                YOUR NEXT STEP IS ABOVE ↑
+              </span>
             </div>
           )}
 
@@ -1263,6 +1351,22 @@ export default function GhostApp() {
           </button>
         </div>
       )}
+
+      <style jsx global>{`
+        .next-step-mobile {
+          display: none;
+        }
+
+        @media (max-width: 850px) {
+          .next-step-desktop {
+            display: none;
+          }
+
+          .next-step-mobile {
+            display: inline;
+          }
+        }
+      `}</style>
     </main>
   );
 }
