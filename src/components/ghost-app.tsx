@@ -1,4 +1,3 @@
-
 "use client";
 
 import Image from "next/image";
@@ -25,7 +24,11 @@ import {
 } from "lucide-react";
 import type { MeetingResult, VoiceStyle } from "@/types/meeting";
 import { isMeetingResult } from "@/types/meeting";
-import { makeSpokenSummary, safeFilename } from "@/lib/format";
+import {
+  makeSpokenSummary,
+  safeFilename,
+  speechLocaleForLanguage,
+} from "@/lib/format";
 import {
   getApiError,
   isAnalysisPayload,
@@ -43,6 +46,7 @@ import BlueprintIntelligence from "@/components/blueprint-intelligence";
 import { buildBlueprintMarkdown } from "@/lib/blueprint-export";
 
 const STORE = "ghost-voice-meetings-v1";
+const OUTPUT_LANGUAGE_STORE = "ghost-output-language-v1";
 const MAX_TRANSCRIPT_LENGTH = 120_000;
 
 type CaptureMode = "microphone" | "tab";
@@ -70,6 +74,7 @@ export default function GhostApp() {
 
   const [title, setTitle] = useState("Quick conversation");
   const [style, setStyle] = useState<VoiceStyle>("direct");
+  const [outputLanguage, setOutputLanguage] = useState("English");
   const [mode, setMode] = useState<CaptureMode>("microphone");
   const [status, setStatus] = useState<Status>("idle");
 
@@ -94,6 +99,12 @@ export default function GhostApp() {
   useEffect(() => {
     try {
       const saved = localStorage.getItem(STORE);
+      const savedLanguage = localStorage.getItem(OUTPUT_LANGUAGE_STORE);
+
+      if (savedLanguage?.trim()) {
+        setOutputLanguage(savedLanguage.slice(0, 80));
+      }
+
       const loaded = loadMeetingHistory(saved);
       setMeetings(loaded);
 
@@ -140,6 +151,16 @@ export default function GhostApp() {
       window.speechSynthesis?.cancel();
     };
   }, []);
+
+  useEffect(() => {
+    if (!hydrated) return;
+
+    try {
+      localStorage.setItem(OUTPUT_LANGUAGE_STORE, outputLanguage.slice(0, 80));
+    } catch {
+      // Language preference persistence is optional.
+    }
+  }, [outputLanguage, hydrated]);
 
   function stopTimer() {
     if (timer.current) {
@@ -393,6 +414,14 @@ export default function GhostApp() {
       return;
     }
 
+    const requestedOutputLanguage = outputLanguage.trim() || "English";
+
+    if (requestedOutputLanguage.length < 2) {
+      setStatus("error");
+      setError("Enter a language name or language code with at least two characters.");
+      return;
+    }
+
     setStatus("processing");
     setError("");
     setNotice("Starting your meeting analysis...");
@@ -406,7 +435,7 @@ export default function GhostApp() {
           transcript: cleanTranscript,
           style,
           title: title.trim() || "Untitled meeting",
-          outputLanguage: "English",
+          outputLanguage: requestedOutputLanguage,
         }),
       });
 
@@ -497,7 +526,8 @@ export default function GhostApp() {
         visualEvidence: analysis.visualEvidence ?? [],
         detectedLanguages: analysis.detectedLanguages ?? [],
         originalLanguage: analysis.originalLanguage ?? "",
-        outputLanguage: "English",
+        outputLanguage:
+          analysis.outputLanguage?.trim() || requestedOutputLanguage,
         translatedTranscript: analysis.translatedTranscript ?? "",
         processingVersion: "2",
       };
@@ -522,7 +552,9 @@ export default function GhostApp() {
       setError("");
       setNotice("Your meeting Blueprint is ready.");
 
-      if (result.spokenSummary) speak(result.spokenSummary);
+      if (result.spokenSummary) {
+        speak(result.spokenSummary, result.outputLanguage);
+      }
     } catch (err) {
       setStatus("error");
       setError(
@@ -533,7 +565,7 @@ export default function GhostApp() {
     }
   }
 
-  function speak(text: string) {
+  function speak(text: string, language?: string) {
     if (!window.speechSynthesis) {
       setNotice("Speech playback is unavailable in this browser.");
       return;
@@ -541,6 +573,12 @@ export default function GhostApp() {
 
     window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(text);
+    const speechLocale = speechLocaleForLanguage(language);
+
+    if (speechLocale) {
+      utterance.lang = speechLocale;
+    }
+
     utterance.rate = 1.02;
     utterance.onstart = () => setPlaying(true);
     utterance.onend = () => setPlaying(false);
@@ -632,20 +670,20 @@ export default function GhostApp() {
         </div>
 
         <h1>
-          Your meetings leave.
+          Your meetings end.
           <br />
           <em>Their decisions don’t.</em>
         </h1>
 
         <p className="hero-copy">
-          Turn a recorded conversation or transcript into a clear Meeting
-          Blueprint: decisions, action items, owners and follow-ups.
+          Turn a leadership meeting into a structured record of confirmed
+          decisions, accountable owners, deadlines and unresolved issues.
         </p>
 
         <div className="hero-meta">
           <span><Check size={14} /> Permission-based capture</span>
-          <span><Check size={14} /> Structured decisions</span>
-          <span><Check size={14} /> Ready-to-use follow-ups</span>
+          <span><Check size={14} /> Confirmed decisions</span>
+          <span><Check size={14} /> Owners and open issues</span>
         </div>
       </section>
 
@@ -673,6 +711,22 @@ export default function GhostApp() {
               <option key={key} value={key}>{value}</option>
             ))}
           </select>
+
+          <label className="field-label" htmlFor="output-language">
+            Blueprint output language
+          </label>
+          <input
+            id="output-language"
+            className="text-input"
+            value={outputLanguage}
+            maxLength={80}
+            placeholder="English, Français, हिन्दी, Arabic, or a language code"
+            onChange={(event) => setOutputLanguage(event.target.value)}
+          />
+          <p className="muted" style={{ fontSize: 12, lineHeight: 1.5, margin: "8px 0 0" }}>
+            The conversation can contain multiple languages. G.H.O.S.T. will
+            write the Blueprint and follow-up drafts in this language.
+          </p>
 
           <div className="capture-title">Choose your recording source</div>
 
@@ -836,7 +890,11 @@ export default function GhostApp() {
                 <div className="spoken-head">
                   <span><Volume2 size={15} /> THE SPOKEN SUMMARY</span>
                   <button
-                    onClick={() => playing ? stopSpeech() : speak(active.spokenSummary)}
+                    onClick={() =>
+                      playing
+                        ? stopSpeech()
+                        : speak(active.spokenSummary, active.outputLanguage)
+                    }
                     aria-label={playing ? "Stop summary" : "Play summary"}
                   >
                     {playing ? <Pause size={16} /> : <Play size={16} />}
@@ -891,7 +949,7 @@ export default function GhostApp() {
               </div>
 
               <div className="brief-section">
-                <h4><ArrowDownToLine size={15} /> ACTION ITEMS</h4>
+                <h4><ArrowDownToLine size={15} /> ACTION REGISTER</h4>
                 {active.actionItems.length ? (
                   <ul className="actions-list">
                     {active.actionItems.map((action, index) => (
