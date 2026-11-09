@@ -1,10 +1,13 @@
+
 import { NextResponse } from "next/server";
 import { checkRateLimit } from "@/lib/rate-limit";
+import {
+  MAX_AUDIO_SIZE,
+  normalizeAudioMimeType,
+} from "@/lib/audio";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
-
-const MAX_AUDIO_SIZE = 4 * 1024 * 1024;
 
 type GeminiFile = {
   name?: string;
@@ -12,23 +15,72 @@ type GeminiFile = {
   mimeType?: string;
 };
 
-type GeminiResponse = {
-  candidates?: Array<{
-    content?: {
-      parts?: Array<{ text?: string }>;
-    };
+type GeminiInteraction = {
+  id?: string;
+  status?: string;
+  output_text?: string;
+  steps?: Array<{
+    type?: string;
+    content?: Array<{
+      type?: string;
+      text?: string;
+    }>;
   }>;
+  error?: unknown;
 };
 
+function extractTranscript(
+  interaction: GeminiInteraction
+): string {
+  if (typeof interaction.output_text === "string") {
+    return interaction.output_text.trim();
+  }
+
+  return (interaction.steps || [])
+    .filter((step) => step.type === "model_output")
+    .flatMap((step) => step.content || [])
+    .filter((part) => part.type === "text")
+    .map((part) => part.text || "")
+    .join("\n")
+    .trim();
+}
+
+function isTrustedUploadUrl(value: string): boolean {
+  try {
+    const url = new URL(value);
+
+    return (
+      url.protocol === "https:" &&
+      url.hostname === "generativelanguage.googleapis.com"
+    );
+  } catch {
+    return false;
+  }
+}
+
 export async function POST(request: Request) {
-  const limit = checkRateLimit(request, "transcribe", 6, 15 * 60);
+  const requestId = crypto.randomUUID();
+  let stage = "request";
+  let uploadedFileName: string | undefined;
+
+  const limit = checkRateLimit(
+    request,
+    "transcribe",
+    6,
+    15 * 60
+  );
 
   if (!limit.allowed) {
     return NextResponse.json(
-      { error: "Too many recordings. Please wait before trying again." },
+      {
+        error: "Too many recordings. Please wait before trying again.",
+      },
       {
         status: 429,
-        headers: { "Retry-After": String(limit.retryAfter) },
+        headers: {
+          "Retry-After": String(limit.retryAfter),
+          "Cache-Control": "no-store",
+        },
       }
     );
   }
@@ -37,22 +89,32 @@ export async function POST(request: Request) {
 
   if (!apiKey) {
     return NextResponse.json(
-      { error: "G.H.O.S.T. is not configured. Add GEMINI_API_KEY in Vercel." },
+      {
+        error:
+          "G.H.O.S.T. is not configured. Please contact the administrator.",
+      },
       { status: 503 }
     );
   }
 
-  let uploadedFileName: string | undefined;
-
   try {
-    const contentLength = Number(request.headers.get("content-length") || 0);
+    const contentLength = Number(
+      request.headers.get("content-length") || 0
+    );
 
-    if (contentLength > MAX_AUDIO_SIZE + 100_000) {
+    if (
+      contentLength > MAX_AUDIO_SIZE + 100_000
+    ) {
       return NextResponse.json(
-        { error: "This recording exceeds the 4 MB upload limit." },
+        {
+          error:
+            "This recording exceeds the 4 MB upload limit. Try a shorter recording.",
+        },
         { status: 413 }
       );
     }
+
+    stage = "read-upload";
 
     let form: FormData;
 
@@ -76,7 +138,10 @@ export async function POST(request: Request) {
 
     if (file.size < 1000) {
       return NextResponse.json(
-        { error: "The recording is too short or empty." },
+        {
+          error:
+            "The recording is empty or too short. Record for a few seconds and try again.",
+        },
         { status: 400 }
       );
     }
@@ -85,58 +150,70 @@ export async function POST(request: Request) {
       return NextResponse.json(
         {
           error:
-            "This recording exceeds the 4 MB upload limit. Use a shorter recording or import a transcript.",
+            "This recording exceeds the 4 MB upload limit. Use a shorter recording.",
         },
         { status: 413 }
       );
     }
 
-    const mimeType = (file.type || "audio/webm").split(";")[0].toLowerCase();
+    const mimeType = normalizeAudioMimeType(file.type);
 
-    const supportedTypes = [
-      "audio/webm",
-      "audio/mp4",
-      "audio/mpeg",
-      "audio/wav",
-      "audio/ogg",
-      "audio/aac",
-      "audio/flac",
-    ];
-
-    if (!supportedTypes.includes(mimeType)) {
+    if (!mimeType) {
       return NextResponse.json(
-        { error: "This audio format is not supported." },
+        {
+          error:
+            "This browser produced an unsupported audio format. Try Chrome or import a transcript.",
+        },
         { status: 415 }
       );
     }
 
+    stage = "start-google-upload";
+
     const startResponse = await fetch(
-      `https://generativelanguage.googleapis.com/upload/v1beta/files?key=${encodeURIComponent(apiKey)}`,
+      "https://generativelanguage.googleapis.com/upload/v1beta/files",
       {
         method: "POST",
         headers: {
+          "x-goog-api-key": apiKey,
           "X-Goog-Upload-Protocol": "resumable",
           "X-Goog-Upload-Command": "start",
-          "X-Goog-Upload-Header-Content-Length": String(file.size),
+          "X-Goog-Upload-Header-Content-Length": String(
+            file.size
+          ),
           "X-Goog-Upload-Header-Content-Type": mimeType,
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          file: { display_name: "ghost-conversation-audio" },
+          file: {
+            display_name: `ghost-audio-${requestId}`,
+          },
         }),
-        signal: AbortSignal.timeout(12000),
+        signal: AbortSignal.timeout(15000),
       }
     );
 
     if (!startResponse.ok) {
-      throw new Error("Gemini could not start the audio upload.");
+      console.error("GHOST transcription stage failed", {
+        requestId,
+        stage,
+        providerStatus: startResponse.status,
+      });
+
+      throw new Error("Google could not start the audio upload.");
     }
 
-    const uploadUrl = startResponse.headers.get("x-goog-upload-url");
+    const uploadUrl = startResponse.headers.get(
+      "x-goog-upload-url"
+    );
 
-    if (!uploadUrl) {
-      throw new Error("Gemini did not return an upload destination.");
+    if (!uploadUrl || !isTrustedUploadUrl(uploadUrl)) {
+      throw new Error(
+        "Google did not return a valid upload destination."
+      );
     }
+
+    stage = "upload-audio";
 
     const uploadResponse = await fetch(uploadUrl, {
       method: "POST",
@@ -145,11 +222,17 @@ export async function POST(request: Request) {
         "X-Goog-Upload-Command": "upload, finalize",
       },
       body: new Uint8Array(await file.arrayBuffer()),
-      signal: AbortSignal.timeout(25000),
+      signal: AbortSignal.timeout(30000),
     });
 
     if (!uploadResponse.ok) {
-      throw new Error("The audio upload failed.");
+      console.error("GHOST transcription stage failed", {
+        requestId,
+        stage,
+        providerStatus: uploadResponse.status,
+      });
+
+      throw new Error("Google could not receive the audio recording.");
     }
 
     let uploadData: { file?: GeminiFile };
@@ -159,43 +242,42 @@ export async function POST(request: Request) {
         file?: GeminiFile;
       };
     } catch {
-      throw new Error("Gemini returned an unreadable upload response.");
+      throw new Error("Google returned an unreadable upload response.");
     }
 
     const remoteFile = uploadData.file;
 
     if (!remoteFile?.uri || !remoteFile.name) {
-      throw new Error("Gemini did not return a usable audio file.");
+      throw new Error("Google did not return a usable audio file.");
     }
 
     uploadedFileName = remoteFile.name;
 
+    stage = "transcribe-audio";
+
     const transcriptionResponse = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-transcribe:generateContent?key=${encodeURIComponent(apiKey)}`,
+      "https://generativelanguage.googleapis.com/v1beta/interactions",
       {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "x-goog-api-key": apiKey,
+        },
         body: JSON.stringify({
-          contents: [
+          model: "gemini-3.5-transcribe",
+          input: [
             {
-              parts: [
-                {
-                  fileData: {
-                    mimeType,
-                    fileUri: remoteFile.uri,
-                  },
-                },
-                {
-                  text:
-                    "Transcribe this conversation accurately and verbatim. Preserve the actual words spoken. Do not summarize, rewrite, infer missing words, or invent speaker identities. Use speaker labels where the audio model provides them.",
-                },
-              ],
+              type: "audio",
+              uri: remoteFile.uri,
+              mime_type: mimeType,
             },
           ],
-          generationConfig: {
-            audioTranscriptionConfig: {
-              mode: "VERBATIM",
-              diarization: true,
+          generation_config: {
+            transcription_config: {
+              mode: {
+                type: "verbatim",
+                diarization_mode: "speaker",
+              },
             },
           },
         }),
@@ -204,71 +286,113 @@ export async function POST(request: Request) {
     );
 
     if (!transcriptionResponse.ok) {
-      const providerError = await transcriptionResponse.text();
+      console.error("GHOST transcription stage failed", {
+        requestId,
+        stage,
+        providerStatus: transcriptionResponse.status,
+      });
 
-      console.error(
-        "GHOST transcription provider error:",
-        transcriptionResponse.status,
-        providerError.slice(0, 1000)
-      );
-
-      throw new Error("Gemini transcription failed.");
+      throw new Error("Google could not transcribe the recording.");
     }
 
-    let result: GeminiResponse;
+    stage = "parse-transcript";
+
+    let interaction: GeminiInteraction;
 
     try {
-      result = (await transcriptionResponse.json()) as GeminiResponse;
+      interaction =
+        (await transcriptionResponse.json()) as GeminiInteraction;
     } catch {
-      throw new Error("Gemini returned an unreadable transcription response.");
+      throw new Error(
+        "Google returned an unreadable transcription response."
+      );
     }
 
-    const transcript = result.candidates?.[0]?.content?.parts
-      ?.map((part) => part.text || "")
-      .filter(Boolean)
-      .join("\n")
-      .trim();
+    const transcript = extractTranscript(interaction);
 
     if (!transcript) {
-      throw new Error("Gemini returned an empty transcript.");
+      console.error("GHOST transcription returned no text", {
+        requestId,
+        stage,
+        providerStatus: interaction.status || "unknown",
+      });
+
+      throw new Error(
+        "No speech was detected. Try recording again in a quieter environment."
+      );
     }
+
+    console.info("GHOST transcription completed", {
+      requestId,
+      stage: "completed",
+      audioBytes: file.size,
+      mimeType,
+      transcriptCharacters: transcript.length,
+    });
 
     return NextResponse.json(
       { transcript },
-      { headers: { "Cache-Control": "no-store" } }
+      {
+        headers: {
+          "Cache-Control": "no-store",
+        },
+      }
     );
   } catch (error) {
-    console.error(
-      "GHOST transcription error:",
-      error instanceof Error ? error.message : "Unknown error"
-    );
+    console.error("GHOST transcription request failed", {
+      requestId,
+      stage,
+      message:
+        error instanceof Error
+          ? error.message
+          : "Unknown error",
+    });
+
+    const message =
+      error instanceof Error
+        ? error.message
+        : "Transcription failed.";
 
     return NextResponse.json(
       {
-        error:
-          "We couldn't transcribe that recording. Try again or paste a transcript instead.",
+        error: message,
+        requestId,
       },
-      { status: 502 }
+      {
+        status: 502,
+        headers: {
+          "Cache-Control": "no-store",
+        },
+      }
     );
   } finally {
     if (uploadedFileName) {
       try {
         const deleteResponse = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/${uploadedFileName}?key=${encodeURIComponent(apiKey)}`,
+          `https://generativelanguage.googleapis.com/v1beta/${uploadedFileName}`,
           {
             method: "DELETE",
-            signal: AbortSignal.timeout(5000),
+            headers: {
+              "x-goog-api-key": apiKey,
+            },
+            signal: AbortSignal.timeout(7000),
           }
         );
 
         if (!deleteResponse.ok) {
           console.error(
-            "GHOST temporary Gemini file deletion failed:",
-            deleteResponse.status
+            "GHOST temporary audio cleanup failed",
+            {
+              requestId,
+              providerStatus: deleteResponse.status,
+            }
           );
         }
       } catch {
-        console.error("GHOST could not delete the temporary Gemini file.");
+        console.error(
+          "GHOST temporary audio cleanup request failed",
+          { requestId }
+        );
       }
     }
   }
