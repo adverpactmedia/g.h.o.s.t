@@ -497,7 +497,7 @@ export default function GhostApp() {
         visualEvidence: analysis.visualEvidence ?? [],
         detectedLanguages: analysis.detectedLanguages ?? [],
         originalLanguage: analysis.originalLanguage ?? "",
-        outputLanguage: analysis.outputLanguage ?? "English",
+        outputLanguage: "English",
         translatedTranscript: analysis.translatedTranscript ?? "",
         processingVersion: "2",
       };
