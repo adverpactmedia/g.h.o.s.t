@@ -291,10 +291,21 @@ export function isAnalysisPayload(
     if (!isOptionalString(value[field])) return false;
   }
 
-  return (
-    value.detectedLanguages === undefined ||
-    isStringArray(value.detectedLanguages)
-  );
+  if (
+    value.detectedLanguages !== undefined &&
+    !isStringArray(value.detectedLanguages)
+  ) {
+    return false;
+  }
+
+  if (
+    typeof value.outputLanguage === "string" &&
+    value.outputLanguage.length > 80
+  ) {
+    return false;
+  }
+
+  return true;
 }
 
 export function getApiError(
