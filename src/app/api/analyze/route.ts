@@ -46,7 +46,7 @@ function createPollToken(interactionId: string, apiKey: string): string {
 
 function validPollToken(interactionId: string, token: string, apiKey: string): boolean {
   const [rawExpires, signature, extra] = token.split(".");
-  if (!rawExpires || !signature || extra !== undefined || !/^\\d{10}$/.test(rawExpires)) return false;
+  if (!rawExpires || !signature || extra !== undefined || !/^\d{10}$/.test(rawExpires)) return false;
   const expires = Number(rawExpires);
   const now = Math.floor(Date.now() / 1000);
   if (!Number.isSafeInteger(expires) || expires <= now || expires > now + 31 * 60) return false;
