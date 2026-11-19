@@ -89,6 +89,28 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   );
 }
 
+async function deleteStoredInteraction(id: string, apiKey: string): Promise<void> {
+  try {
+    const response = await fetch(`${API}/${encodeURIComponent(id)}`, {
+      method: "DELETE",
+      headers: {
+        "x-goog-api-key": apiKey,
+        "Api-Revision": "2026-05-20",
+      },
+      cache: "no-store",
+      signal: AbortSignal.timeout(5000),
+    });
+
+    if (!response.ok && response.status !== 404) {
+      console.error("GHOST stored interaction cleanup failed", {
+        providerStatus: response.status,
+      });
+    }
+  } catch {
+    console.error("GHOST stored interaction cleanup request failed");
+  }
+}
+
 function getApiKey(): string | null {
   const value = process.env.GEMINI_API_KEY?.trim();
   return value || null;
@@ -401,6 +423,10 @@ export async function GET(request: Request) {
         }
       );
     }
+
+    // Background execution requires a stored interaction. Delete it as soon as
+    // Gemini reaches a terminal state; G.H.O.S.T. keeps the user's history locally.
+    await deleteStoredInteraction(id, apiKey);
 
     if (interaction.status !== "completed") {
       console.error("GHOST interaction ended unsuccessfully:", {
