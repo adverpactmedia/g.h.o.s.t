@@ -72,7 +72,7 @@ export default function MeetingAssistant({ meeting }: Props) {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
         <div>
           <h4 style={{ margin: 0, display: "flex", alignItems: "center", gap: 8 }}><MessageCircle size={16} /> ASK G.H.O.S.T.</h4>
-          <p className="muted" style={{ margin: "6px 0 0" }}>Ask questions about this meeting's transcript, decisions and action register.</p>
+          <p className="muted" style={{ margin: "6px 0 0" }}>Ask questions about this meeting&apos;s transcript, decisions and action register.</p>
         </div>
         <button className="mini-action" onClick={() => setOpen(value => !value)}>{open ? "Close" : "Ask"}</button>
       </div>
