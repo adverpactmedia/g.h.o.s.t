@@ -107,3 +107,17 @@
 - Consent requirements depend on jurisdiction, participant location, workplace policy and platform.
 - Do not use the current application for confidential or regulated conversations without reviewing applicable obligations and provider terms.
 - Do not claim PIPEDA compliance, HIPAA compliance or other certification without a verified assessment.
+
+## STABLOCITY complimentary companion decision
+
+G.H.O.S.T. is free to access for STABLOCITY licence holders and users at no separate charge. It remains a separate hosted service operated and developed by Adverpact Media. It is optional and is not packaged in STABLOCITY source ZIPs or customer handover archives. This does not grant source-code, ownership, hosting or redistribution rights.
+
+The complimentary arrangement has no service-level, uptime, retention or ongoing support guarantee. Reasonable-use controls may be necessary because transcription and analysis incur third-party API costs.
+
+## Integration decision
+
+The target is a user-controlled Markdown Meeting Blueprint transfer. Contact/deal attachment is optional; workspace-level meeting storage is also supported. The user selects the destination industry workspace and destination record. STABLOCITY must enforce its own permissions. Current workspace-scoped access is not equivalent to per-contract access; do not claim contract-level ACLs until implemented and audited across the application.
+
+## Provider credentials and external integration assumptions
+
+No Zoom, Google Workspace, Microsoft Graph, SMTP sending or calendar OAuth credentials are assumed to exist. Automatic meeting attendance, email sending, calendar writes, completion tracking and cloud history sync remain unavailable until provider registration, credentials, approved scopes, secure token storage, user consent and end-to-end tests are completed.
