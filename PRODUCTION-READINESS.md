@@ -32,8 +32,8 @@ This file separates deployed capabilities from requested capabilities that are n
 
 The G.H.O.S.T. backend sends audio and transcript content to Google's Gemini API. This means information is processed outside the user's device while transcription/analysis is running, even though G.H.O.S.T. does not maintain its own meeting-history database.
 
-- The transcription route uploads audio to the Gemini Files API and attempts to delete that temporary file in a `finally` cleanup step.
-- The analysis route uses `background: true` and `store: true` to poll for completion, then attempts to delete the interaction when it reaches a terminal state.
+- The transcription route uses `store: false` for its synchronous Gemini interaction, uploads audio to the Gemini Files API and attempts to delete that temporary file in a `finally` cleanup step.
+- The analysis route uses `background: true` and `store: true` to poll for completion, then attempts to delete the interaction when it reaches a terminal state. Google documents one-day retention for stored free-tier interactions and 55-day retention for stored paid-tier interactions; abandoned sessions or failed cleanup may remain subject to provider retention.
 - Google documents one-day retention for stored interactions on the free API tier and 55-day retention on the paid API tier. If a session is abandoned or cleanup fails, provider retention may apply until the record expires.
 - Google's Gemini API pricing page says free-tier content may be used to improve Google products; paid-tier content is not used for that purpose.
 - The configured API project's actual billing tier has not been verified here. Do not claim zero retention or enterprise privacy.
