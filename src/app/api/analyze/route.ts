@@ -1,5 +1,6 @@
 
 import { NextResponse } from "next/server";
+import { createHmac, timingSafeEqual } from "node:crypto";
 import {
   analyzeSchema,
   type AnalysisStyle,
@@ -28,6 +29,34 @@ type Interaction = {
     }>;
   }>;
 };
+
+
+function pollSecret(apiKey: string): string {
+  return process.env.GHOST_SESSION_SECRET?.trim() || apiKey;
+}
+
+function createPollToken(interactionId: string, apiKey: string): string {
+  const expires = Math.floor(Date.now() / 1000) + 30 * 60;
+  const payload = interactionId + "." + expires;
+  const signature = createHmac("sha256", pollSecret(apiKey))
+    .update(payload)
+    .digest("base64url");
+  return expires + "." + signature;
+}
+
+function validPollToken(interactionId: string, token: string, apiKey: string): boolean {
+  const [rawExpires, signature, extra] = token.split(".");
+  if (!rawExpires || !signature || extra !== undefined || !/^\\d{10}$/.test(rawExpires)) return false;
+  const expires = Number(rawExpires);
+  const now = Math.floor(Date.now() / 1000);
+  if (!Number.isSafeInteger(expires) || expires <= now || expires > now + 31 * 60) return false;
+  const expected = createHmac("sha256", pollSecret(apiKey))
+    .update(interactionId + "." + expires)
+    .digest("base64url");
+  const suppliedBytes = Buffer.from(signature);
+  const expectedBytes = Buffer.from(expected);
+  return suppliedBytes.length === expectedBytes.length && timingSafeEqual(suppliedBytes, expectedBytes);
+}
 
 function extractOutput(interaction: Interaction): string {
   if (typeof interaction.output_text === "string") {
@@ -230,6 +259,7 @@ export async function POST(request: Request) {
     return NextResponse.json(
       {
         interactionId: interaction.id,
+        pollToken: createPollToken(interaction.id, apiKey),
         status: interaction.status || "in_progress",
       },
       {
@@ -289,6 +319,8 @@ export async function GET(request: Request) {
   }
 
   const id = new URL(request.url).searchParams.get("id");
+  const authorization = request.headers.get("authorization") || "";
+  const pollToken = authorization.startsWith("Bearer ") ? authorization.slice(7).trim() : "";
 
   if (!id || !/^[A-Za-z0-9_-]{6,200}$/.test(id)) {
     return NextResponse.json(
@@ -297,6 +329,13 @@ export async function GET(request: Request) {
         status: 400,
         headers: noStoreHeaders(),
       }
+    );
+  }
+
+  if (!validPollToken(id, pollToken, apiKey)) {
+    return NextResponse.json(
+      { error: "This analysis session is invalid or has expired. Please run the analysis again." },
+      { status: 401, headers: noStoreHeaders() }
     );
   }
 
