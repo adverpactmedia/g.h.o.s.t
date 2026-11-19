@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import ghostLogo from "../../Ghogo.jpg";
+import stablocityLogo from "../../StablocityLogo.png";
 import { useEffect, useRef, useState } from "react";
 import {
   ArrowDownToLine,
