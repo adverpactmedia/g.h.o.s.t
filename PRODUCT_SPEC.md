@@ -328,3 +328,12 @@ Do not describe the public G.H.O.S.T. deployment as hardened or ready for unrest
 - Security headers, CSRF protections where applicable, origin checks and safe error handling are verified.
 - Automated unit, integration and end-to-end tests pass.
 - Production configuration and backup/restore behavior are verified.
+
+
+## Implemented source milestone: STABLOCITY transfer
+The G.H.O.S.T. UI now offers a Transfer to STABLOCITY action that downloads the reviewed Markdown file and opens the user's own STABLOCITY import page. CRM and RM source repositories include the receiving API and UI. The receiver stores the full Markdown in the selected workspace, supports optional contact/company/deal links, validates that linked records belong to the workspace, checks existing workspace write permissions, rejects duplicate content and records an audit event.
+
+The implementation is deployed to the CRM and RM demo services. Page and script availability have been smoke-checked. Authenticated end-to-end customer acceptance is still pending. Current STABLOCITY permissions are workspace-scoped and are not per-contract/deal ACLs.
+
+## Analysis polling hardening
+Analysis creation now returns a signed, expiring token bound to the Gemini interaction ID. Poll requests require that token. Configure GHOST_SESSION_SECRET as a separate high-entropy secret in production to allow independent rotation; if unset, the Gemini API key is used as the signing key. This protects the polling endpoint from ID-only retrieval but does not provide user authentication or cloud history authorization.
