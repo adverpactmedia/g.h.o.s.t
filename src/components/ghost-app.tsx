@@ -616,6 +616,29 @@ export default function GhostApp() {
     window.setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 
+  function transferToStablocity(item: MeetingResult) {
+    const raw = window.prompt(
+      "Enter the address of your STABLOCITY deployment. The Meeting Blueprint will be downloaded for you to import.",
+      "https://your-stablocity-domain.example"
+    );
+    if (!raw?.trim()) return;
+
+    try {
+      const destination = new URL(raw.trim());
+      if (destination.protocol !== "https:" && destination.hostname !== "localhost") {
+        throw new Error("Use your STABLOCITY HTTPS address.");
+      }
+      destination.pathname = "/ghost-import";
+      destination.search = "";
+      destination.hash = "";
+      window.open(destination.toString(), "_blank", "noopener,noreferrer");
+      exportMeeting(item, false);
+      setNotice("Meeting Blueprint downloaded. In the STABLOCITY tab, choose the workspace and optional contact, company or deal, then confirm the import.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "The STABLOCITY address is invalid.");
+    }
+  }
+
   function removeMeeting(item: MeetingResult) {
     setMeetings((previous) =>
       previous.filter((meeting) => meeting.createdAt !== item.createdAt)
@@ -1027,6 +1050,10 @@ export default function GhostApp() {
                   <button className="secondary-button" onClick={() => exportMeeting(active, true)}>
                     <ArrowDownToLine size={15} />
                     Blueprint + Transcript (.md)
+                  </button>
+                  <button className="secondary-button" onClick={() => transferToStablocity(active)}>
+                    <ArrowDownToLine size={15} />
+                    Transfer to STABLOCITY
                   </button>
                 </div>
               </div>
