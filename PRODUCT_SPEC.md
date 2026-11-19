@@ -337,3 +337,7 @@ The implementation is deployed to the CRM and RM demo services. Page and script 
 
 ## Analysis polling hardening
 Analysis creation now returns a signed, expiring token bound to the Gemini interaction ID. Poll requests require that token. Configure GHOST_SESSION_SECRET as a separate high-entropy secret in production to allow independent rotation; if unset, the Gemini API key is used as the signing key. This protects the polling endpoint from ID-only retrieval but does not provide user authentication or cloud history authorization.
+
+
+## Voice-operated companion direction (planned)
+G.H.O.S.T. is planned to add a user-controlled conversational voice agent, supported meeting-platform adapters, direct email sending, calendar creation and approved task destinations. Per-user voice and language preferences are required. Consequential actions require explicit confirmation. Meeting history remains browser/device-local unless the user explicitly exports it. These capabilities are not implemented merely by this specification; consult PRODUCTION-READINESS.md and VOICE_AGENT_INTEGRATION_SPEC.md for current status and constraints.
