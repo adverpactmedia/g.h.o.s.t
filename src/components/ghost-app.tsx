@@ -72,12 +72,12 @@ function openFollowUpEmail(draft: { subject: string; body: string }) {
   const recipient = window.prompt("Enter the recipient's email address:");
   if (!recipient) return;
   const address = recipient.trim();
-  if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(address)) {
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(address)) {
     window.alert("Enter a valid email address, then try again.");
     return;
   }
   const query = new URLSearchParams({ subject: draft.subject, body: draft.body });
-  window.location.href = "mailto:" + encodeURIComponent(address) + "?" + query.toString();
+  window.location.href = "mailto:" + address + "?" + query.toString();
 }
 
 export default function GhostApp() {
