@@ -55,3 +55,10 @@ The existing STABLOCITY model supports workspace membership and write roles. It 
 
 ## What remains outside this transfer
 This Markdown handoff does not provide autonomous Zoom/Meet/Teams attendance, outbound email, calendar writes, task status synchronization, user accounts or cross-device G.H.O.S.T. history. Those are independent integrations and require separate provider credentials, data storage and authorization.
+
+
+## Voice BCRM and deal ACL dependency
+
+The planned voice agent must call STABLOCITY's same authenticated application action APIs and may not bypass workspace or deal-level permissions. Every imported meeting, attached activity and task must inherit the destination deal's authorization rules. The current integration is still workspace-scoped; complete per-deal ACL implementation and cross-user tests are a prerequisite to promising contract-level confidentiality.
+
+Planned cross-product workflow: user reviews a Meeting Blueprint, selects the destination deployment/workspace, selects only records they can access, previews the import, and confirms. The receiver rechecks permissions at commit time. External export/sync is a separate explicit user choice and does not move G.H.O.S.T. browser history into a mandatory cloud archive.
