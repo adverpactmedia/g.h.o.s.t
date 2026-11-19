@@ -265,6 +265,7 @@ export async function POST(request: Request) {
         },
         body: JSON.stringify({
           model: "gemini-3.5-transcribe",
+          store: false,
           input: [
             {
               type: "audio",
