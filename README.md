@@ -80,7 +80,7 @@ G.H.O.S.T. sends recorded audio to Google's Gemini API for transcription. The re
 
 Meeting history is stored in the current browser's local storage. It is not a cloud-synced archive. Clearing browser storage may permanently remove saved meeting records.
 
-The transcription endpoint attempts to delete the temporary uploaded Gemini audio file after processing. The analysis endpoint uses Gemini background interactions with storage enabled. Do not interpret this as a zero-retention guarantee.
+The transcription endpoint attempts to delete the temporary uploaded Gemini audio file after processing. The analysis endpoint uses Gemini background interactions with `store:true` so G.H.O.S.T. can poll for the result, then attempts to delete the interaction when it reaches a terminal state. Google documents one-day retention for free-tier interactions and 55-day retention for paid-tier interactions; abandoned sessions or failed cleanup may remain subject to that provider retention. The free Gemini API tier may use submitted content to improve Google products; the paid API tier says it does not. This is not zero-retention processing.
 
 Do not submit confidential, regulated or sensitive conversations unless you have permission and have reviewed the applicable provider terms and your organization's requirements.
 
@@ -110,7 +110,7 @@ The complimentary companion relationship does not create an uptime, support, ret
 
 The desired handoff is a user-initiated Markdown Meeting Blueprint transfer. The user must choose the destination industry workspace and may optionally attach the meeting to a contact, company or deal, or save it at workspace level. STABLOCITY must independently authenticate the user and authorize every destination. The Markdown file is data only and must never grant permissions.
 
-The handoff is not live merely because Markdown export exists. Do not claim operational CRM transfer until the receiver, destination selection, permission checks, persistence, audit logging and end-to-end tests are complete in both STABLOCITY CRM and RM deployment tracks.
+The user-directed Markdown handoff is implemented in the G.H.O.S.T. sender and both STABLOCITY CRM and RM receivers. The receiving import pages are deployed and smoke-checked. The user chooses the workspace and may optionally attach a contact, company or deal. The receiver enforces current workspace write permissions and validates same-workspace references. Full authenticated customer acceptance testing is still pending, and STABLOCITY does not yet enforce per-contract/deal ACLs across every application path.
 
 ## External integrations status
 
