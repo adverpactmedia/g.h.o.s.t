@@ -660,6 +660,15 @@ export default function GhostApp() {
             <ShieldCheck size={14} />
             Browser-local history
           </span>
+          <a
+            className="secondary-button"
+            href="https://stablocity-buisness-relationship.onrender.com/"
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ marginTop: 0, textDecoration: "none" }}
+          >
+            Open STABLOCITY CRM ↗
+          </a>
         </div>
       </header>
 
