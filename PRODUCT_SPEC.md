@@ -283,3 +283,48 @@ Transcription and analysis cost per completed meeting.
 6. Validate pricing and willingness to pay.
 7. Add billing only after identity, metering and entitlements are implemented.
 8. Consider cloud synchronization and integrations only when customer demand supports them.
+
+## STABLOCITY companion service boundary
+
+G.H.O.S.T. is complimentary to STABLOCITY users but remains a separate hosted product. It is not part of any STABLOCITY source ZIP or customer handover. No STABLOCITY licence transfers G.H.O.S.T. source code, ownership, hosting or redistribution rights. The service has separate hosting, provider processing, availability and privacy terms.
+
+## Planned STABLOCITY Meeting Blueprint transfer
+
+The target workflow is a user-directed Markdown handoff:
+1. Export a validated Meeting Blueprint with a versioned machine-readable metadata block.
+2. Open the user's own STABLOCITY deployment and authenticate normally.
+3. Select an industry workspace.
+4. Optionally select a contact, company or deal, or choose workspace-level storage.
+5. Preview the destination and content.
+6. The STABLOCITY server verifies workspace membership, write permission and that any selected record belongs to that workspace.
+7. Persist the meeting and an audit event.
+8. Provide a confirmation and a link to the resulting record.
+
+The sender file is untrusted input. The receiving application must parse it with size limits, sanitize rendered text, reject unknown schema versions, prevent cross-workspace references and never trust IDs or permissions carried in the file. A user must be able to cancel before commit.
+
+The current STABLOCITY authorization model is workspace-scoped. It must not be described as contract-specific authorization unless record-level permissions are implemented across all relevant read and write paths, not merely on the import endpoint.
+
+## Integration roadmap and release gates
+
+The following are future integrations, not current features:
+- Native Zoom, Google Meet and Microsoft Teams meeting attendance/capture.
+- Email sending from approved user accounts.
+- Calendar event creation and updates.
+- Persistent task status, assignment and completion tracking.
+- Authenticated cloud history and cross-device synchronization.
+
+Each provider integration requires production OAuth applications and credentials supplied by the product owner, approved scopes, consent and revocation flows, encrypted token storage, webhook signature validation, replay protection, rate limiting, audit trails and provider-specific tests. Platform app approval and meeting-bot policies may limit what can be implemented. No credentials or provider approvals are assumed to exist.
+
+## Security release gate
+
+Do not describe the public G.H.O.S.T. deployment as hardened or ready for unrestricted confidential use until:
+- User identity and authenticated sessions are implemented.
+- API routes enforce authentication and authorization.
+- Rate limiting works across serverless instances.
+- Request size and duration limits are enforced.
+- Gemini API keys remain server-side and provider data retention is disclosed.
+- Stored meeting data is protected with access controls and deletion/export controls.
+- OAuth tokens, if introduced, are encrypted at rest and never returned to clients.
+- Security headers, CSRF protections where applicable, origin checks and safe error handling are verified.
+- Automated unit, integration and end-to-end tests pass.
+- Production configuration and backup/restore behavior are verified.
