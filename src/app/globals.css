@@ -102,7 +102,23 @@ button:disabled {
 .top-actions {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
   gap: 22px;
+}
+
+.stablocity-nav-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 120px;
+  min-height: 48px;
+  flex: 0 0 auto;
+  text-decoration: none;
+}
+
+.stablocity-nav-link img {
+  max-width: 100%;
+  height: auto;
 }
 
 .privacy {
