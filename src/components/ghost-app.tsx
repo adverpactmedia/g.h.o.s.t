@@ -44,6 +44,7 @@ import {
   MAX_AUDIO_SIZE,
 } from "@/lib/audio";
 import BlueprintIntelligence from "@/components/blueprint-intelligence";
+import MeetingAssistant from "@/components/meeting-assistant";
 import { buildBlueprintMarkdown } from "@/lib/blueprint-export";
 
 const STORE = "ghost-voice-meetings-v1";
@@ -1026,6 +1027,7 @@ export default function GhostApp() {
               </div>
 
               <BlueprintIntelligence meeting={active} />
+              <MeetingAssistant meeting={active} />
 
               {([
                 ["EXECUTIVE BLUEPRINT", active.executiveFollowUp],
