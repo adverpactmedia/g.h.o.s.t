@@ -38,6 +38,14 @@ The first Google Meet release is an authorized post-meeting capture and processi
 - Never trust a workspace ID or CRM record ID carried in a Pub/Sub payload.
 - Do not expose a public endpoint that accepts arbitrary conference resource names without verifying account ownership.
 
+## Event delivery constraints
+
+- Google Workspace Events subscriptions publish CloudEvents through a Pub/Sub topic. The topic must grant `roles/pubsub.publisher` to `meet-api-event-push@system.gserviceaccount.com`.
+- Pub/Sub push authentication uses a separate user-managed service account. Its email and the exact endpoint audience are configured in STABLOCITY. The Pub/Sub service agent must be allowed to mint OIDC tokens for that service account.
+- Meeting-space owners/organizers can receive conference and participant events. Calendar invitees may receive only conference-started and transcript-file-generated events, so attendance detail is not guaranteed for every connected user.
+- Event notifications identify changed resources; the backend must call the Meet REST API to retrieve transcript entries and participant sessions. Notifications alone do not contain the complete transcript.
+- Transcript entries are available for 30 days after the conference ends; timely ingestion and reconciliation are required.
+
 ## Consent, privacy and retention
 
 - Users must enable capture and understand what meeting artifacts are retrieved.
@@ -66,7 +74,14 @@ The first Google Meet release is an authorized post-meeting capture and processi
 
 G.H.O.S.T. now exposes a private `POST /api/internal/meetings/analyze` endpoint for STABLOCITY server-to-server transcript submissions. It verifies an HMAC-SHA256 signature over the exact request body, timestamp and event ID, rejects expired/malformed signatures, then delegates to the existing G.H.O.S.T. analysis flow. It returns the existing analysis interaction ID and poll token. The shared secret is configured as `STABLOCITY_GHOST_WEBHOOK_SECRET` in Vercel and `GHOST_WEBHOOK_SECRET` in STABLOCITY; it must never be sent to browser code.
 
-The STABLOCITY backend now has a matching request-signing helper and a configurable G.H.O.S.T. endpoint. This is a server-to-server analysis bridge only. It does not currently receive Google Meet events, create subscriptions, retrieve transcripts or persist cloud meeting history.
+The STABLOCITY backend now has:
+- A user-authorized Google Meet subscription endpoint for a direct meeting-space URL.
+- Authenticated Pub/Sub push verification using a Google OIDC service-account token.
+- CloudEvent validation and idempotent event receipt stored against the authorized workspace/user.
+- A matching HMAC request-signing helper for the G.H.O.S.T. analysis endpoint.
+
+The event inbox currently queues metadata only. It does not yet fetch transcript entries or participant sessions, send transcript text to G.H.O.S.T., poll the Blueprint analysis result or persist the final Blueprint. The subscription UI and background processing worker remain to be completed. The current endpoint subscribes to one direct Meet space at a time, not every meeting on a user's calendar.
+
 
 ## Current state
 
