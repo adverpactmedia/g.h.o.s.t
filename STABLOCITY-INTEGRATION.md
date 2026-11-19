@@ -78,3 +78,19 @@ The CRM and RM feature branches now contain the first implementation tranche:
 The CRM and RM regression suites now include a cross-user test for hiding a restricted deal, preventing disclosure through a contact detail view, rejecting unauthorized edits and task creation, granting view-only access, and applying revocation immediately. The latest observed CRM and RM test workflows passed this initial test tranche. This is not the full security release gate: route-by-route review, expiry tests, admin-without-grant tests, backup/restore review, audit review and deployed integration tests remain required.
 
 G.H.O.S.T. does not assign or transfer STABLOCITY permissions. A Markdown file is data, not an authorization token. The receiving STABLOCITY deployment remains the authority for the signed-in user's access to every selected record.
+
+
+## UI and ACL test update — 19 November 2026
+
+The unmerged STABLOCITY CRM and RM branches now include:
+- A deal-detail access panel for the deal owner and users with manage permission.
+- A restricted-deal inventory for explicit workspace owners/admins. It displays only deal ID, owner name and active-grant count, not deal title, value or notes.
+- Explicit confirmation before visibility changes, grants and revocations.
+- Receiver-side checks for G.H.O.S.T. meeting list/detail/import when a meeting is attached to a restricted deal.
+
+Latest automated evidence:
+- CRM workflow 124 passed: 14 tests and JavaScript syntax validation.
+- RM workflow 168 passed: 14 tests, Python compilation, deployment configuration validation, Docker build and container smoke test.
+- RM customer package workflow 105 passed.
+
+These tests are in the STABLOCITY repositories. They do not certify G.H.O.S.T. as an authorization system. G.H.O.S.T. continues to treat Markdown as a user-directed export; the receiving STABLOCITY deployment decides whether the signed-in user may attach or read the target deal. None of these changes are merged or deployed.
