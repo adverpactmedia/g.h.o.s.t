@@ -662,13 +662,21 @@ export default function GhostApp() {
             Browser-local history
           </span>
           <a
-            className="secondary-button"
+            className="stablocity-nav-link"
             href="https://stablocity-buisness-relationship.onrender.com/"
             target="_blank"
             rel="noopener noreferrer"
-            style={{ marginTop: 0, textDecoration: "none" }}
+            aria-label="Open STABLOCITY CRM"
+            title="Open STABLOCITY CRM"
           >
-            Open STABLOCITY CRM ↗
+            <Image
+              src={stablocityLogo}
+              alt="STABLOCITY"
+              width={180}
+              height={48}
+              priority
+              style={{ width: "clamp(120px, 24vw, 180px)", height: 48, objectFit: "contain", display: "block" }}
+            />
           </a>
         </div>
       </header>
