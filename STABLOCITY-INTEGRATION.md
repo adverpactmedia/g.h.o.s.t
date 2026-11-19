@@ -94,3 +94,14 @@ Latest automated evidence:
 - RM customer package workflow 105 passed.
 
 These tests are in the STABLOCITY repositories. They do not certify G.H.O.S.T. as an authorization system. G.H.O.S.T. continues to treat Markdown as a user-directed export; the receiving STABLOCITY deployment decides whether the signed-in user may attach or read the target deal. None of these changes are merged or deployed.
+
+
+## Additional receiver-side ACL lifecycle guarantees (draft branch, not deployed)
+
+The receiving STABLOCITY deployment remains the authority for access. The current CRM/RM feature branches now also:
+- Reduce an individual's deal grants to view when their workspace role is downgraded to viewer.
+- Revoke all deal grants when the individual is removed from that workspace; re-adding the account does not restore those grants.
+- Apply workspace-only visibility when internal deal/task/activity query or timeline helpers have no authenticated user context.
+- Reject grants to users who are not members of the target workspace and reject malformed grant-expiry timestamps.
+
+G.H.O.S.T. Markdown exports remain content handoffs only. They do not carry, create, or override STABLOCITY authorization. Every deal attachment and subsequent read must be checked by the receiving deployment for the signed-in user. These receiver-side changes are on unmerged CRM/RM feature branches and must not be represented as live production guarantees.
