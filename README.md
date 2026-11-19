@@ -62,7 +62,7 @@ The current version does not:
 - Automatically join Zoom, Google Meet, Microsoft Teams or other meetings.
 - Intercept phone calls or record every application on a device.
 - Guarantee that every speaker or commitment is identified correctly.
-- Send follow-up emails.
+- Send follow-up emails directly from G.H.O.S.T. (it can open a prefilled draft in the user's email application).
 - Create calendar events or reminders.
 - Track whether assigned tasks are completed.
 - Sync meeting history between devices.
