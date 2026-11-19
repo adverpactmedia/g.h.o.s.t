@@ -1,6 +1,6 @@
 # G.H.O.S.T. Google Meet Integration
 
-Status: implementation specification; no automatic Meet attendance is currently available.
+Status: signed STABLOCITY-to-G.H.O.S.T. transcript analysis bridge implemented; Google Meet event ingestion is not yet available.
 
 ## Product behavior
 
@@ -61,6 +61,12 @@ The first Google Meet release is an authorized post-meeting capture and processi
 - Disconnect revokes/invalidates the stored connection and prevents future ingestion.
 - Deletion requests remove stored meeting content according to the published retention policy.
 - Desktop and mobile flows are tested before release.
+
+## Implemented bridge boundary
+
+G.H.O.S.T. now exposes a private `POST /api/internal/meetings/analyze` endpoint for STABLOCITY server-to-server transcript submissions. It verifies an HMAC-SHA256 signature over the exact request body, timestamp and event ID, rejects expired/malformed signatures, then delegates to the existing G.H.O.S.T. analysis flow. It returns the existing analysis interaction ID and poll token. The shared secret is configured as `STABLOCITY_GHOST_WEBHOOK_SECRET` in Vercel and `GHOST_WEBHOOK_SECRET` in STABLOCITY; it must never be sent to browser code.
+
+The STABLOCITY backend now has a matching request-signing helper and a configurable G.H.O.S.T. endpoint. This is a server-to-server analysis bridge only. It does not currently receive Google Meet events, create subscriptions, retrieve transcripts or persist cloud meeting history.
 
 ## Current state
 
