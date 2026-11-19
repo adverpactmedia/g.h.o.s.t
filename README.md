@@ -99,3 +99,19 @@ For the most reliable first test of shared-tab audio, use a current desktop Chro
 ```bash
 npm install
 cp .env.example .env.local
+
+## STABLOCITY complimentary companion
+
+G.H.O.S.T. is also made available at no separate charge to STABLOCITY licence holders and users. It remains an optional, separately operated service. It is not installed in STABLOCITY and is never included in the STABLOCITY source-code ZIP or customer handover archive. STABLOCITY users receive access to the hosted G.H.O.S.T. application, not its source code, hosting rights or ownership.
+
+The complimentary companion relationship does not create an uptime, support, retention or service-level guarantee. Reasonable-use controls may be applied. G.H.O.S.T. remains a separate product and development project.
+
+## STABLOCITY handoff status
+
+The desired handoff is a user-initiated Markdown Meeting Blueprint transfer. The user must choose the destination industry workspace and may optionally attach the meeting to a contact, company or deal, or save it at workspace level. STABLOCITY must independently authenticate the user and authorize every destination. The Markdown file is data only and must never grant permissions.
+
+The handoff is not live merely because Markdown export exists. Do not claim operational CRM transfer until the receiver, destination selection, permission checks, persistence, audit logging and end-to-end tests are complete in both STABLOCITY CRM and RM deployment tracks.
+
+## External integrations status
+
+Automatic attendance in Zoom, Google Meet or Microsoft Teams, email sending, calendar event creation, task completion tracking and cloud-synced meeting history are not current capabilities. Each requires its own provider registration, OAuth scopes, secure credential storage, callbacks, user consent, data model, error handling and end-to-end verification. Do not advertise these capabilities as available until released and tested.
