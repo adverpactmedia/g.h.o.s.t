@@ -68,6 +68,18 @@ async function readJson(response: Response): Promise<unknown> {
   }
 }
 
+function openFollowUpEmail(draft: { subject: string; body: string }) {
+  const recipient = window.prompt("Enter the recipient's email address:");
+  if (!recipient) return;
+  const address = recipient.trim();
+  if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(address)) {
+    window.alert("Enter a valid email address, then try again.");
+    return;
+  }
+  const query = new URLSearchParams({ subject: draft.subject, body: draft.body });
+  window.location.href = "mailto:" + encodeURIComponent(address) + "?" + query.toString();
+}
+
 export default function GhostApp() {
   const [meetings, setMeetings] = useState<MeetingResult[]>([]);
   const [active, setActive] = useState<MeetingResult | null>(null);
@@ -1019,12 +1031,17 @@ export default function GhostApp() {
                 <div className="brief-section followup" key={label}>
                   <div className="follow-head">
                     <h4><FileText size={15} /> {label}</h4>
-                    <button
-                      className="mini-action"
-                      onClick={() => copy(`Subject: ${draft.subject}\n\n${draft.body}`)}
-                    >
-                      <Copy size={13} /> Copy
-                    </button>
+                    <div style={{ display: "flex", gap: 7 }}>
+                      <button className="mini-action" onClick={() => openFollowUpEmail(draft)}>
+                        <FileText size={13} /> Open in email
+                      </button>
+                      <button
+                        className="mini-action"
+                        onClick={() => copy(`Subject: ${draft.subject}\n\n${draft.body}`)}
+                      >
+                        <Copy size={13} /> Copy
+                      </button>
+                    </div>
                   </div>
                   <strong>{draft.subject}</strong>
                   <p>{draft.body}</p>
