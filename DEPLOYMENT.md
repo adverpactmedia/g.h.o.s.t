@@ -37,6 +37,7 @@ Never commit `.env.local`. Never expose the API key through a `NEXT_PUBLIC_` var
 | Variable | Required | Purpose |
 |---|---:|---|
 | `GEMINI_API_KEY` | Yes | Server-side key used for audio transcription and meeting analysis. |
+| `STABLOCITY_GHOST_WEBHOOK_SECRET` | Optional until STABLOCITY handoff is enabled | Shared secret (32+ characters) for HMAC-authenticated STABLOCITY transcript submissions. |
 
 The current application does not use the old OpenAI environment variables.
 
@@ -52,6 +53,8 @@ The transcription endpoint accepts audio uploads up to 4 MB.
 The analysis endpoint starts a background interaction. The browser then polls the application for the result.
 
 A successful deployment does not by itself prove that the configured API key, model access, quotas, or billing are working. Test both transcription and transcript analysis after deployment.
+
+The private `POST /api/internal/meetings/analyze` endpoint accepts transcript submissions from STABLOCITY only when the exact JSON body is signed with `STABLOCITY_GHOST_WEBHOOK_SECRET`. It uses a timestamp and event ID in the HMAC-SHA256 signature, then returns the normal G.H.O.S.T. analysis task ID and poll token. Configure the same secret as `GHOST_WEBHOOK_SECRET` on the STABLOCITY service. Do not expose this secret to browser code. This bridge is not yet connected to Meet event subscriptions or Pub/Sub.
 
 ## Vercel deployment
 
