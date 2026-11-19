@@ -75,12 +75,13 @@ The first Google Meet release is an authorized post-meeting capture and processi
 G.H.O.S.T. now exposes a private `POST /api/internal/meetings/analyze` endpoint for STABLOCITY server-to-server transcript submissions. It verifies an HMAC-SHA256 signature over the exact request body, timestamp and event ID, rejects expired/malformed signatures, then delegates to the existing G.H.O.S.T. analysis flow. It returns the existing analysis interaction ID and poll token. The shared secret is configured as `STABLOCITY_GHOST_WEBHOOK_SECRET` in Vercel and `GHOST_WEBHOOK_SECRET` in STABLOCITY; it must never be sent to browser code.
 
 The STABLOCITY backend now has:
+- Primary-calendar discovery for direct Meet links (7 days back through 30 days ahead), with manual sync and an opt-in background renewal worker.
 - A user-authorized Google Meet subscription endpoint for a direct meeting-space URL.
 - Authenticated Pub/Sub push verification using a Google OIDC service-account token.
 - CloudEvent validation and idempotent event receipt stored against the authorized workspace/user.
 - A matching HMAC request-signing helper for the G.H.O.S.T. analysis endpoint.
 
-The event inbox currently queues metadata only. It does not yet fetch transcript entries or participant sessions, send transcript text to G.H.O.S.T., poll the Blueprint analysis result or persist the final Blueprint. The subscription UI and background processing worker remain to be completed. The current endpoint subscribes to one direct Meet space at a time, not every meeting on a user's calendar.
+The event inbox currently queues metadata only. It does not yet fetch transcript entries or participant sessions, send transcript text to G.H.O.S.T., poll the Blueprint analysis result or persist the final Blueprint. Calendar sync creates up to 10 new meeting-space subscriptions per request; subscriptions expire after seven days and require renewal. The subscription UI and background processing worker remain to be completed. The current endpoint subscribes to one direct Meet space at a time, not every meeting on a user's calendar.
 
 
 ## Current state
