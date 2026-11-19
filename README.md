@@ -115,3 +115,14 @@ The handoff is not live merely because Markdown export exists. Do not claim oper
 ## External integrations status
 
 Automatic attendance in Zoom, Google Meet or Microsoft Teams, email sending, calendar event creation, task completion tracking and cloud-synced meeting history are not current capabilities. Each requires its own provider registration, OAuth scopes, secure credential storage, callbacks, user consent, data model, error handling and end-to-end verification. Do not advertise these capabilities as available until released and tested.
+
+
+## STABLOCITY transfer implementation
+
+The Meeting Blueprint screen now includes a Transfer to STABLOCITY action. It asks for the user's own STABLOCITY deployment URL, downloads the reviewed Markdown Blueprint and opens that deployment's /ghost-import page. The user then chooses the destination workspace and may optionally attach the meeting to a contact, company or deal. The receiving STABLOCITY server validates workspace access and same-workspace record references.
+
+The sender and receiver code has been added to the repositories and the import page is deployed on the STABLOCITY CRM and RM demos. This does not yet constitute a full authenticated customer acceptance test. The current STABLOCITY access model is workspace-level, not per-contract/deal ACL. Do not represent it as named-user access control for each contract.
+
+## Additional API protection
+
+Analysis polling now uses a short-lived signed token tied to the Gemini interaction ID. This reduces the risk of another visitor retrieving a poll result using only a guessed or exposed interaction ID. It does not replace user authentication, distributed abuse controls or cloud account permissions.
