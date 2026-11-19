@@ -828,9 +828,13 @@ export default function GhostApp() {
           <div className="capture-note">
             <ShieldCheck size={15} />
             <span>
-              Audio and transcripts are sent to Google Gemini for processing.
-              Do not submit confidential conversations unless you have
-              permission and have reviewed the provider&apos;s data terms.
+              Audio and transcripts are sent to Google&apos;s Gemini API. Free-tier API
+              content may be used to improve Google products; paid-tier API content
+              is not. G.H.O.S.T. deletes uploaded audio after processing and attempts
+              to delete completed analysis records. Provider retention may still
+              apply if cleanup fails or a session is abandoned. Review the
+              <a href="https://ai.google.dev/gemini-api/docs/pricing" target="_blank" rel="noopener noreferrer">Gemini API data terms</a>
+              before submitting confidential material.
             </span>
           </div>
 
@@ -1139,8 +1143,12 @@ export default function GhostApp() {
         <p>
           Record only with everyone&apos;s knowledge and consent.
           Recording laws and workplace policies vary. Verify AI-generated
-          decisions and commitments before acting. Audio and transcript
-          content are processed by Google Gemini.
+          decisions and commitments before acting. G.H.O.S.T. meeting history stays in this browser. Audio and transcripts
+          are processed by Google Gemini. Free-tier API content may be used to
+          improve Google products; paid-tier API content is not. G.H.O.S.T.
+          attempts to delete uploaded audio and completed analysis interactions.
+          Provider retention may apply if cleanup fails or a session is abandoned.
+          <a href="https://ai.google.dev/gemini-api/docs/pricing" target="_blank" rel="noopener noreferrer">Review Gemini API data handling</a>.
         </p>
         <span className="version">EARLY ACCESS BUILD · 04</span>
       </footer>
