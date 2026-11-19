@@ -52,6 +52,7 @@ You can also paste an existing transcript instead of recording.
 - Saved meeting history in the current browser.
 - Spoken recap using browser speech synthesis.
 - Copy and Markdown export.
+- Open a generated follow-up draft in the user's email application via a prefilled `mailto:` link.
 - Export of the Blueprint with or without the original transcript.
 - Delete saved meeting records from the current browser.
 
