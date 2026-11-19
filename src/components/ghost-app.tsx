@@ -448,12 +448,16 @@ export default function GhostApp() {
         typeof startResult !== "object" ||
         !("interactionId" in startResult) ||
         typeof startResult.interactionId !== "string" ||
-        !startResult.interactionId
+        !startResult.interactionId ||
+        !("pollToken" in startResult) ||
+        typeof startResult.pollToken !== "string" ||
+        !startResult.pollToken
       ) {
         throw new Error(getApiError(startResult, "G.H.O.S.T. could not start the analysis."));
       }
 
       const interactionId = startResult.interactionId;
+      const pollToken = startResult.pollToken;
       let analysis: AnalysisPayload | null = null;
       const maxAttempts = 120;
 
@@ -462,7 +466,7 @@ export default function GhostApp() {
 
         const pollResponse = await fetch(
           `/api/analyze?id=${encodeURIComponent(interactionId)}`,
-          { method: "GET", cache: "no-store" }
+          { method: "GET", headers: { Authorization: `Bearer ${pollToken}` }, cache: "no-store" }
         );
         const pollResult = await readJson(pollResponse);
 
