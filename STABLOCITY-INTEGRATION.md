@@ -1,6 +1,6 @@
 # STABLOCITY Integration Contract
 
-Status: design specification. Not a claim that the integration is deployed.
+Status: sender and receiver implementation committed and deployed to the STABLOCITY CRM and RM demo URLs. The import page and static script have been smoke-checked. Authenticated end-to-end acceptance with a real user account is still pending; do not describe the overall integration as fully verified.
 
 ## User experience
 A G.H.O.S.T. user reviews a completed Meeting Blueprint and exports a Markdown file. In their own STABLOCITY deployment they open the G.H.O.S.T. import workflow, upload the file, select an industry workspace, and optionally attach it to a contact, company or deal. A workspace-level meeting record without an attachment is valid. The user previews the destination and confirms the import.
@@ -46,3 +46,12 @@ The existing STABLOCITY model supports workspace membership and write roles. It 
 - Imported meeting is visible only to users with access to its workspace.
 - Audit event records actor, workspace, destination and import time.
 - Same tests pass in CRM and RM repositories.
+
+
+## Current deployment URLs
+- CRM demo import page: https://stablocity-buisness-relationship.onrender.com/ghost-import
+- RM demo import page: https://stablocity-rm-test.onrender.com/ghost-import
+- G.H.O.S.T. application: https://g-h-o-s-t-drab.vercel.app/
+
+## What remains outside this transfer
+This Markdown handoff does not provide autonomous Zoom/Meet/Teams attendance, outbound email, calendar writes, task status synchronization, user accounts or cross-device G.H.O.S.T. history. Those are independent integrations and require separate provider credentials, data storage and authorization.
