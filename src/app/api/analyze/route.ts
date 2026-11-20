@@ -116,6 +116,12 @@ function getApiKey(): string | null {
   return value || null;
 }
 
+export function createInternalPollToken(interactionId: string): string {
+  const apiKey = getApiKey();
+  if (!apiKey) throw new Error("G.H.O.S.T. is not configured.");
+  return createPollToken(interactionId, apiKey);
+}
+
 function noStoreHeaders(): HeadersInit {
   return {
     "Cache-Control": "no-store, max-age=0",
