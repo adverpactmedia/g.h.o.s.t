@@ -72,7 +72,7 @@ The first Google Meet release is an authorized post-meeting capture and processi
 
 ## Implemented bridge boundary
 
-G.H.O.S.T. now exposes a private `POST /api/internal/meetings/analyze` endpoint for STABLOCITY server-to-server transcript submissions. It verifies an HMAC-SHA256 signature over the exact request body, timestamp and event ID, rejects expired/malformed signatures, then delegates to the existing G.H.O.S.T. analysis flow. It returns the existing analysis interaction ID and poll token. The shared secret is configured as `STABLOCITY_GHOST_WEBHOOK_SECRET` in Vercel and `GHOST_WEBHOOK_SECRET` in STABLOCITY; it must never be sent to browser code.
+G.H.O.S.T. exposes a private `POST /api/internal/meetings/analyze` endpoint for STABLOCITY server-to-server transcript submissions. It verifies an HMAC-SHA256 signature over the exact request body, timestamp and event ID, rejects expired/malformed signatures, and enforces request-size limits. A Supabase-backed event store claims each event ID before analysis, binds it to a SHA-256 body hash, uses a short processing lease, returns the same Gemini interaction for completed duplicate requests, and rejects event-ID reuse with a different body. The endpoint fails closed unless the G.H.O.S.T. Supabase migration is applied and `SUPABASE_URL` plus the server-only `SUPABASE_SERVICE_ROLE_KEY` are configured. The shared webhook secret is configured as `STABLOCITY_GHOST_WEBHOOK_SECRET` in Vercel and `GHOST_WEBHOOK_SECRET` in STABLOCITY; it must never be sent to browser code.
 
 The STABLOCITY backend now has:
 - Primary-calendar discovery for direct Meet links (7 days back through 30 days ahead), with manual sync and an opt-in background renewal worker.
