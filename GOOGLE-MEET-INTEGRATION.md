@@ -1,6 +1,6 @@
 # G.H.O.S.T. Google Meet Integration
 
-Status: signed STABLOCITY-to-G.H.O.S.T. transcript analysis bridge implemented; Google Meet event ingestion is not yet available.
+Status: signed transcript endpoint, Supabase event-store helper and migration are present in this unmerged development branch. Production configuration and the real Google Meet-to-Blueprint handoff are not verified.
 
 ## Product behavior
 
@@ -70,22 +70,22 @@ The first Google Meet release is an authorized post-meeting capture and processi
 - Deletion requests remove stored meeting content according to the published retention policy.
 - Desktop and mobile flows are tested before release.
 
-## Implemented bridge boundary
+## Development-branch bridge boundary
 
 G.H.O.S.T. exposes a private `POST /api/internal/meetings/analyze` endpoint for STABLOCITY server-to-server transcript submissions. It verifies an HMAC-SHA256 signature over the exact request body, timestamp and event ID, rejects expired/malformed signatures, and enforces request-size limits. A Supabase-backed event store claims each event ID before analysis, binds it to a SHA-256 body hash, uses a short processing lease, returns the same Gemini interaction for completed duplicate requests, and rejects event-ID reuse with a different body. The endpoint fails closed unless the G.H.O.S.T. Supabase migration is applied and `SUPABASE_URL` plus the server-only `SUPABASE_SERVICE_ROLE_KEY` are configured. The shared webhook secret is configured as `STABLOCITY_GHOST_WEBHOOK_SECRET` in Vercel and `GHOST_WEBHOOK_SECRET` in STABLOCITY; it must never be sent to browser code.
 
-The STABLOCITY backend now has:
+The STABLOCITY development branch contains the following code, but it is unmerged and has not passed real Google-account or production acceptance:
 - Primary-calendar discovery for direct Meet links (7 days back through 30 days ahead), with manual sync and an opt-in background renewal worker.
 - A user-authorized Google Meet subscription endpoint for a direct meeting-space URL.
 - Authenticated Pub/Sub push verification using a Google OIDC service-account token.
 - CloudEvent validation and idempotent event receipt stored against the authorized workspace/user.
 - A matching HMAC request-signing helper for the G.H.O.S.T. analysis endpoint.
 
-With the optional STABLOCITY background worker enabled, transcript-file-generated events are processed after Google marks the transcript as ready. STABLOCITY retrieves transcript entries, participant display names and available participant-session attendance, then submits the transcript through this private signed endpoint. G.H.O.S.T. starts its background Gemini analysis and returns a task ID plus a short-lived poll token. STABLOCITY polls for completion, encrypts the structured Blueprint in its own workspace database, and imports a Markdown copy into the workspace's G.H.O.S.T. Meetings list. Raw transcript text is not stored in the STABLOCITY CRM database by this worker. G.H.O.S.T. still uses Gemini's stored background interaction and attempts provider-side cleanup when polling reaches a terminal state; cleanup can fail and is not a zero-retention guarantee.
+Intended end-to-end flow after deployment: when the optional STABLOCITY background worker receives a valid transcript-file-generated event, it should retrieve transcript entries and available attendance, submit them through this signed endpoint, poll G.H.O.S.T. for the Blueprint, encrypt the structured result in the owning STABLOCITY workspace and import a Markdown copy into the workspace's G.H.O.S.T. Meetings list. This flow has not yet been verified against a real Google account and configured production Supabase project. Raw transcript text should not be stored in the STABLOCITY CRM database by this worker. G.H.O.S.T. uses Gemini's stored background interaction and attempts provider-side cleanup; cleanup can fail and is not a zero-retention guarantee.
 
 The STABLOCITY account page can scan the connected user's primary calendar and create up to 10 new meeting-space subscriptions per sync. Subscriptions expire after seven days and the optional worker renews/discovers them on its configured interval. The transcript processor polls its event queue every two minutes by default. It does not join meetings as a bot or capture live audio. Participant attendance detail depends on the connected user's Meet permissions; transcript entries are available for 30 days after the conference ends.
 
 
-## Current state
+## Current production and release state
 
-G.H.O.S.T. currently uses browser-local meeting history and Gemini for user-submitted audio/transcripts. It does not have user accounts, Google OAuth, Meet event subscriptions, Pub/Sub ingestion, automatic Meet attendance or durable cloud meeting history. This specification does not make those features available.
+The current production G.H.O.S.T. application still uses browser-local meeting history and Gemini for user-submitted audio/transcripts. The development branch adds the private signed STABLOCITY transcript endpoint, a Supabase-backed idempotency helper and a migration. Those pieces are not active in production until the PR is merged, the migration is applied and the server-only Supabase/webhook variables are configured. The STABLOCITY Google OAuth, Meet subscription and Pub/Sub worker code is also unmerged and has not been tested end-to-end with a real Google account. G.H.O.S.T. does not join meetings as a bot or capture live meeting audio.
