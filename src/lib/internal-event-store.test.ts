@@ -10,7 +10,7 @@ afterEach(() => {
 });
 
 function response(value: unknown, status = 200): Response {
-  return new Response(JSON.stringify(value), { status, headers: { "Content-Type": "application/json" } });
+  return new Response(status === 204 ? null : JSON.stringify(value), { status, headers: { "Content-Type": "application/json" } });
 }
 
 describe("GHOST internal event store", () => {
@@ -63,8 +63,7 @@ describe("GHOST internal event store", () => {
     vi.stubEnv("SUPABASE_URL", "https://project.supabase.co");
     vi.stubEnv("SUPABASE_SERVICE_ROLE_KEY", "service-role-key-long-enough");
     const fetchMock = vi.fn()
-      .mockResolvedValueOnce(response([{ event_id: eventId }]))
-      .mockResolvedValueOnce(response(null, 204));
+      .mockResolvedValueOnce(response([{ event_id: eventId }]));
     vi.stubGlobal("fetch", fetchMock);
     await completeInternalEvent(eventId, bodyHash, "interaction_123");
     expect(fetchMock).toHaveBeenCalledTimes(1);
