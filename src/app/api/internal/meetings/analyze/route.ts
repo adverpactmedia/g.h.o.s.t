@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createHash } from "node:crypto";
-import { POST as analyzePost, createInternalPollToken } from "../../../analyze/route";
+import { POST as analyzePost } from "../../../analyze/route";
+import { createInternalPollToken } from "@/lib/analysis-poll-token";
 import { verifyInternalSignature } from "@/lib/internal-auth";
 import { claimInternalEvent, completeInternalEvent, failInternalEvent } from "@/lib/internal-event-store";
 
@@ -56,7 +57,6 @@ export async function POST(request: Request) {
     );
   }
 
-  const timestamp = request.headers.get("x-stablocity-timestamp") || "";
   const eventId = request.headers.get("x-stablocity-event-id") || "";
   const bodyHash = createHash("sha256").update(rawBody, "utf8").digest("hex");
   let claim;
