@@ -1,0 +1,91 @@
+# G.H.O.S.T. Google Meet Integration
+
+Status: signed transcript endpoint, Supabase event-store helper and migration are present in this unmerged development branch. Production configuration and the real Google Meet-to-Blueprint handoff are not verified.
+
+## Product behavior
+
+The first Google Meet release is an authorized post-meeting capture and processing integration, not an invisible meeting bot and not a promise of unrestricted live audio streaming.
+
+1. A STABLOCITY user connects their own Google account through the authenticated STABLOCITY Google OAuth flow.
+2. The user explicitly enables Meet artifact processing for the relevant workspace and meeting source.
+3. G.H.O.S.T./STABLOCITY receives an authorized Google Workspace event indicating a conference or transcript artifact change.
+4. The backend verifies the event delivery, resolves the linked Google account and owning STABLOCITY workspace, then fetches the corresponding Meet conference record, participants, attendance sessions and transcript entries using that user's access token.
+5. The backend stores a durable, workspace-scoped source record and processing status.
+6. Gemini converts the transcript into a Meeting Blueprint.
+7. The user reviews the Blueprint and explicitly selects which tasks, contact updates, deal changes, email drafts or calendar actions to send to the STABLOCITY agent.
+8. The STABLOCITY action engine validates and executes approved actions, recording audit outcomes.
+
+## Google API facts and constraints
+
+- The Meet REST API exposes conference records, participants, participant sessions, recordings, transcripts and transcript entries.
+- The Google Workspace Events API can deliver Meet conference lifecycle and transcript artifact events through Google Cloud Pub/Sub.
+- Meet transcript entries are structured by speaker and timestamp.
+- Transcript entries are available for 30 days after the conference ends. Event delivery must trigger prompt ingestion; a periodic reconciliation job is required to recover missed events.
+- The user must authorize access using Google OAuth credentials. The Meet REST API does not provide anonymous access to user meeting content.
+- Initial Meet metadata scope: `https://www.googleapis.com/auth/meetings.space.readonly`.
+- Additional Drive scopes must not be requested unless the implementation actually downloads Drive-hosted transcript or recording files. Prefer Meet transcript-entry resources where they meet product requirements.
+- Meet API artifact availability depends on the meeting's recording/transcription configuration, organizer permissions, account edition and Google Workspace policies. The product must report unavailable artifacts instead of pretending every meeting produced a transcript.
+
+## Event ingestion requirements
+
+- Validate Pub/Sub push authentication and expected audience/service identity.
+- Validate message structure and base64 payload decoding.
+- Treat all event payloads as untrusted input.
+- Bind every subscription and conference record to the connected Google account and one workspace.
+- Deduplicate event deliveries and artifact imports using stable provider resource names.
+- Persist event receipt, processing status, retry count and last error without storing OAuth tokens in logs.
+- Use bounded retries with backoff and a dead-letter/reconciliation path.
+- Never trust a workspace ID or CRM record ID carried in a Pub/Sub payload.
+- Do not expose a public endpoint that accepts arbitrary conference resource names without verifying account ownership.
+
+## Event delivery constraints
+
+- Google Workspace Events subscriptions publish CloudEvents through a Pub/Sub topic. The topic must grant `roles/pubsub.publisher` to `meet-api-event-push@system.gserviceaccount.com`.
+- Pub/Sub push authentication uses a separate user-managed service account. Its email and the exact endpoint audience are configured in STABLOCITY. The Pub/Sub service agent must be allowed to mint OIDC tokens for that service account.
+- Meeting-space owners/organizers can receive conference and participant events. Calendar invitees may receive only conference-started and transcript-file-generated events, so attendance detail is not guaranteed for every connected user.
+- Event notifications identify changed resources; the backend must call the Meet REST API to retrieve transcript entries and participant sessions. Notifications alone do not contain the complete transcript.
+- Transcript entries are available for 30 days after the conference ends; timely ingestion and reconciliation are required.
+
+## Consent, privacy and retention
+
+- Users must enable capture and understand what meeting artifacts are retrieved.
+- Provide a clear recording/transcription notice and consent guidance. Follow applicable laws, organization policy and Google Workspace terms.
+- Provide disconnect and deletion controls.
+- Store only the minimum transcript/attendance data needed for the configured feature.
+- Define retention separately for raw transcripts, generated Blueprints and CRM action audit records.
+- Do not claim that Google Meet API access means G.H.O.S.T. joins a meeting or captures live audio.
+- Do not claim universal availability across personal Google accounts, Workspace editions or admin configurations until tested.
+
+## Acceptance tests
+
+- Only the connected Google account's authorized conferences can be ingested.
+- A user cannot import another user's conference by changing a resource name.
+- A Workspace A user cannot attach a conference or Blueprint to Workspace B.
+- Duplicate Pub/Sub delivery creates one source record and one processing job.
+- Invalid Pub/Sub authentication is rejected.
+- Missing transcript artifacts are reported as unavailable, not as successful capture.
+- Pagination retrieves all transcript entries within provider limits.
+- Events missed during downtime are recovered by reconciliation while artifacts remain available.
+- Disconnect revokes/invalidates the stored connection and prevents future ingestion.
+- Deletion requests remove stored meeting content according to the published retention policy.
+- Desktop and mobile flows are tested before release.
+
+## Development-branch bridge boundary
+
+G.H.O.S.T. exposes a private `POST /api/internal/meetings/analyze` endpoint for STABLOCITY server-to-server transcript submissions. It verifies an HMAC-SHA256 signature over the exact request body, timestamp and event ID, rejects expired/malformed signatures, and enforces request-size limits. A Supabase-backed event store claims each event ID before analysis, binds it to a SHA-256 body hash, uses a short processing lease, returns the same Gemini interaction for completed duplicate requests, and rejects event-ID reuse with a different body. The endpoint fails closed unless the G.H.O.S.T. Supabase migration is applied and `SUPABASE_URL` plus the server-only `SUPABASE_SERVICE_ROLE_KEY` are configured. The shared webhook secret is configured as `STABLOCITY_GHOST_WEBHOOK_SECRET` in Vercel and `GHOST_WEBHOOK_SECRET` in STABLOCITY; it must never be sent to browser code.
+
+The STABLOCITY development branch contains the following code, but it is unmerged and has not passed real Google-account or production acceptance:
+- Primary-calendar discovery for direct Meet links (7 days back through 30 days ahead), with manual sync and an opt-in background renewal worker.
+- A user-authorized Google Meet subscription endpoint for a direct meeting-space URL.
+- Authenticated Pub/Sub push verification using a Google OIDC service-account token.
+- CloudEvent validation and idempotent event receipt stored against the authorized workspace/user.
+- A matching HMAC request-signing helper for the G.H.O.S.T. analysis endpoint.
+
+Intended end-to-end flow after deployment: when the optional STABLOCITY background worker receives a valid transcript-file-generated event, it should retrieve transcript entries and available attendance, submit them through this signed endpoint, poll G.H.O.S.T. for the Blueprint, encrypt the structured result in the owning STABLOCITY workspace and import a Markdown copy into the workspace's G.H.O.S.T. Meetings list. This flow has not yet been verified against a real Google account and configured production Supabase project. Raw transcript text should not be stored in the STABLOCITY CRM database by this worker. G.H.O.S.T. uses Gemini's stored background interaction and attempts provider-side cleanup; cleanup can fail and is not a zero-retention guarantee.
+
+The STABLOCITY account page can scan the connected user's primary calendar and create up to 10 new meeting-space subscriptions per sync. Subscriptions expire after seven days and the optional worker renews/discovers them on its configured interval. The transcript processor polls its event queue every two minutes by default. It does not join meetings as a bot or capture live audio. Participant attendance detail depends on the connected user's Meet permissions; transcript entries are available for 30 days after the conference ends.
+
+
+## Current production and release state
+
+The current production G.H.O.S.T. application still uses browser-local meeting history and Gemini for user-submitted audio/transcripts. The development branch adds the private signed STABLOCITY transcript endpoint, a Supabase-backed idempotency helper and a migration. Those pieces are not active in production until the PR is merged, the migration is applied and the server-only Supabase/webhook variables are configured. The STABLOCITY Google OAuth, Meet subscription and Pub/Sub worker code is also unmerged and has not been tested end-to-end with a real Google account. G.H.O.S.T. does not join meetings as a bot or capture live meeting audio.

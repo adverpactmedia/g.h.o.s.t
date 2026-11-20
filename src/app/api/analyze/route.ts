@@ -8,6 +8,7 @@ import {
 import { buildAnalysisPrompt } from "@/lib/analysis-prompt";
 import { isAnalysisPayload } from "@/lib/analysis-response";
 import { checkRateLimit } from "@/lib/rate-limit";
+import { createAnalysisPollToken, pollSecret } from "@/lib/analysis-poll-token";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
@@ -30,19 +31,6 @@ type Interaction = {
   }>;
 };
 
-
-function pollSecret(apiKey: string): string {
-  return process.env.GHOST_SESSION_SECRET?.trim() || apiKey;
-}
-
-function createPollToken(interactionId: string, apiKey: string): string {
-  const expires = Math.floor(Date.now() / 1000) + 30 * 60;
-  const payload = interactionId + "." + expires;
-  const signature = createHmac("sha256", pollSecret(apiKey))
-    .update(payload)
-    .digest("base64url");
-  return expires + "." + signature;
-}
 
 function validPollToken(interactionId: string, token: string, apiKey: string): boolean {
   const [rawExpires, signature, extra] = token.split(".");
@@ -115,6 +103,7 @@ function getApiKey(): string | null {
   const value = process.env.GEMINI_API_KEY?.trim();
   return value || null;
 }
+
 
 function noStoreHeaders(): HeadersInit {
   return {
@@ -281,7 +270,7 @@ export async function POST(request: Request) {
     return NextResponse.json(
       {
         interactionId: interaction.id,
-        pollToken: createPollToken(interaction.id, apiKey),
+        pollToken: createAnalysisPollToken(interaction.id, apiKey),
         status: interaction.status || "in_progress",
       },
       {
