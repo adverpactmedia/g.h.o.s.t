@@ -113,27 +113,33 @@ function noStoreHeaders(): HeadersInit {
 }
 
 export async function POST(request: Request) {
-  const limit = checkRateLimit(
-    request,
-    "analyze",
-    12,
-    15 * 60
-  );
+  const internalSecret = process.env.STABLOCITY_GHOST_WEBHOOK_SECRET?.trim() || "";
+  const trustedInternalForward =
+    internalSecret.length >= 32 &&
+    request.headers.get("x-ghost-internal-forward") === internalSecret;
 
-  if (!limit.allowed) {
-    return NextResponse.json(
-      {
-        error:
-          "Too many analysis requests. Please wait before trying again.",
-      },
-      {
-        status: 429,
-        headers: {
-          ...noStoreHeaders(),
-          "Retry-After": String(limit.retryAfter),
-        },
-      }
-    );
+  if (!trustedInternalForward) {
+    const limit = await checkRateLimit(request, "analyze", 12, 15 * 60);
+
+    if (!limit.storeAvailable) {
+      return NextResponse.json(
+        { error: "Usage protection is unavailable. No analysis was started." },
+        { status: 503, headers: noStoreHeaders() }
+      );
+    }
+
+    if (!limit.allowed) {
+      return NextResponse.json(
+        { error: "Too many analysis requests. Please wait before trying again." },
+        {
+          status: 429,
+          headers: {
+            ...noStoreHeaders(),
+            "Retry-After": String(limit.retryAfter),
+          },
+        }
+      );
+    }
   }
 
   const apiKey = getApiKey();
@@ -294,19 +300,18 @@ export async function POST(request: Request) {
 }
 
 export async function GET(request: Request) {
-  const limit = checkRateLimit(
-    request,
-    "analyze-poll",
-    180,
-    15 * 60
-  );
+  const limit = await checkRateLimit(request, "analyze-poll", 180, 15 * 60);
+
+  if (!limit.storeAvailable) {
+    return NextResponse.json(
+      { error: "Usage protection is unavailable. Please retry shortly." },
+      { status: 503, headers: noStoreHeaders() }
+    );
+  }
 
   if (!limit.allowed) {
     return NextResponse.json(
-      {
-        error:
-          "Too many status checks. Please wait before trying again.",
-      },
+      { error: "Too many status checks. Please wait before trying again." },
       {
         status: 429,
         headers: {
