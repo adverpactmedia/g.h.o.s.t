@@ -37,6 +37,8 @@ Never commit `.env.local`. Never expose the API key through a `NEXT_PUBLIC_` var
 | Variable | Required | Purpose |
 |---|---:|---|
 | `GEMINI_API_KEY` | Yes | Server-side key used for audio transcription and meeting analysis. |
+| `SUPABASE_URL` | Yes for production API use | Existing Supabase project URL for shared atomic rate limits and durable internal-event claims. |
+| `SUPABASE_SERVICE_ROLE_KEY` | Yes for production API use | Server-only service-role key; never expose to browser code. |
 | `STABLOCITY_GHOST_WEBHOOK_SECRET` | Optional until STABLOCITY handoff is enabled | Shared secret (32+ characters) for HMAC-authenticated STABLOCITY transcript submissions. |
 
 The current application does not use the old OpenAI environment variables.
@@ -54,7 +56,7 @@ The analysis endpoint starts a background interaction. The browser then polls th
 
 A successful deployment does not by itself prove that the configured API key, model access, quotas, or billing are working. Test both transcription and transcript analysis after deployment.
 
-The development branch adds a private `POST /api/internal/meetings/analyze` endpoint for transcript submissions from STABLOCITY. It verifies an HMAC-SHA256 signature over the exact JSON body, timestamp and event ID, then returns the normal G.H.O.S.T. analysis task ID and poll token. It also includes a Supabase event-store helper and migration for durable idempotency. This is not active in production until the PR is merged, the migration is applied and `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` and `STABLOCITY_GHOST_WEBHOOK_SECRET` are configured in Vercel. Configure the matching `GHOST_WEBHOOK_SECRET` on STABLOCITY. Do not expose any of these secrets to browser code. The bridge is not itself connected to Meet event subscriptions or Pub/Sub.
+The development branch adds a private `POST /api/internal/meetings/analyze` endpoint for transcript submissions from STABLOCITY. It verifies an HMAC-SHA256 signature over the exact JSON body, timestamp and event ID, then returns the normal G.H.O.S.T. analysis task ID and poll token. The branch also includes a Supabase event ledger and an atomic shared rate-limit function. Before enabling the APIs, apply both SQL migrations in `supabase/migrations/` to the existing G.H.O.S.T. Supabase project and configure `SUPABASE_URL` plus the server-only `SUPABASE_SERVICE_ROLE_KEY` in Vercel. The public analysis and transcription routes fail closed if the shared quota store is unavailable; they do not fall back to process-local limits. Configure `STABLOCITY_GHOST_WEBHOOK_SECRET` and the matching `GHOST_WEBHOOK_SECRET` on STABLOCITY. Never expose these secrets to browser code. The bridge is not itself connected to Meet event subscriptions or Pub/Sub.
 
 ## Vercel deployment
 
@@ -104,14 +106,15 @@ The current application is an early MVP.
 
 Important limitations:
 
-- API routes do not currently require user authentication.
-- The current rate limiter uses process memory and is not a reliable distributed abuse-control system.
-- Anyone who can reach an unprotected deployment may be able to call the AI endpoints and generate API usage.
-- There is no account system, user-level quota, payment enforcement, or team access control.
+- API routes do not currently require user accounts or sign-in; anonymous access is still possible.
+- The integration branch replaces process-local limits with shared atomic Supabase quotas keyed by the trusted Vercel edge IP and a hashed IP/user-agent bucket.
+- The shared quota store is a cost-control layer, not proof against determined abuse, VPN rotation or distributed bot traffic.
+- If Supabase is missing or unavailable, transcription and analysis requests are rejected before provider work begins.
+- There is no account system, user-level identity quota, payment enforcement or team access control.
 
 For initial testing, keep the Vercel deployment protected and share access only with intended testers.
 
-Do not expose the application to unrestricted public traffic until authentication or an effective access-control layer and reliable usage limits are in place.
+Keep Vercel deployment protection enabled during integration testing. Do not expose the application to unrestricted public traffic until the Supabase migrations are applied, deployed quota enforcement is verified, and an additional access-control or anti-abuse gate is selected for the public-free product.
 
 ## Production verification
 
