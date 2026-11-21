@@ -108,7 +108,11 @@ export async function POST(request: Request) {
 
   const forwarded = new Request(new URL("/api/analyze", request.url), {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      // This server-only marker is accepted only after the outer HMAC check.
+      "x-ghost-internal-forward": secret,
+    },
     body: rawBody,
   });
   try {
