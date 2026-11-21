@@ -9,7 +9,13 @@ function noStoreHeaders() {
 }
 
 export async function POST(request: Request) {
-  const limit = checkRateLimit(request, "assistant-chat", 12, 15 * 60);
+  const limit = await checkRateLimit(request, "assistant-chat", 12, 15 * 60);
+  if (!limit.storeAvailable) {
+    return NextResponse.json(
+      { error: "Usage protection is unavailable. No assistant request was sent." },
+      { status: 503, headers: noStoreHeaders() }
+    );
+  }
   if (!limit.allowed) {
     return NextResponse.json(
       { error: "Too many assistant requests. Wait before trying again." },
