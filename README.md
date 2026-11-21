@@ -90,7 +90,7 @@ Do not submit confidential, regulated or sensitive conversations unless you have
 - Node.js 20.9 or newer
 - npm
 - A Google Gemini API key
-- A Supabase project for durable internal meeting-event idempotency
+- The existing Supabase project for shared API quotas and durable internal meeting-event idempotency
 - A modern browser
 - HTTPS in production
 
@@ -101,7 +101,7 @@ For the most reliable first test of shared-tab audio, use a current desktop Chro
 ```bash
 npm install
 cp .env.example .env.local
-# Configure GEMINI_API_KEY, GHOST_SESSION_SECRET, SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY
+# Configure GEMINI_API_KEY, SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY; apply both Supabase migrations before production API use
 
 
 ## Private STABLOCITY meeting handoff
