@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { checkRateLimit } from "@/lib/rate-limit";
+import { checkRateLimit } from "./rate-limit";
 
 const request = (headers: Record<string, string> = {}) =>
   new Request("https://ghost.example/api/analyze", { headers });
