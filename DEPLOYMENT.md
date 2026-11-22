@@ -73,7 +73,7 @@ The development branch adds a private `POST /api/internal/meetings/analyze` endp
 9. Open the production URL over HTTPS.
 10. Complete the user-side tests in the launch checklist.
 
-Keep deployment protection enabled during the initial test period.
+Keep deployment protection enabled during the initial test period. **Current project check (2026-11-22):** password, SSO and trusted-IP protection are disabled in the Vercel project. Treat branch preview URLs as publicly reachable; do not share them with customers or place production secrets in Preview environment scope. The public production domain remains on the `main` branch. If private preview testing is required, enable Preview-only protection before sharing preview URLs.
 
 ## Browser recording requirements
 
