@@ -43,7 +43,7 @@ Never commit `.env.local`. Never expose the API key through a `NEXT_PUBLIC_` var
 
 The current application does not use the old OpenAI environment variables.
 
-**Gemini free-tier data warning:** audio and transcripts submitted to G.H.O.S.T. are sent to Google's Gemini API for transcription and analysis. Google's current Gemini Developer API pricing documentation identifies free-tier content as potentially used to improve Google products. Use synthetic meeting data for free-tier testing. Do not submit confidential customer, employee, legal, financial or commercially sensitive meetings through the free tier unless all required participants have been informed, the customer has reviewed Google's applicable terms and the customer has explicitly approved that transfer. Do not describe the free tier as zero-retention or as excluded from provider model improvement. See https://ai.google.dev/gemini-api/docs/pricing/.
+**Gemini free-tier data warning:** audio and transcripts submitted to G.H.O.S.T. are sent to Google's Gemini API for transcription and analysis. Google's current Gemini Developer API pricing documentation states that free-tier content is used to improve Google products. Use synthetic meeting data for free-tier testing. Do not submit confidential customer, employee, legal, financial or commercially sensitive meetings through the free tier unless all required participants have been informed, the customer has reviewed Google's applicable terms and the customer has explicitly approved that transfer. Do not describe the free tier as zero-retention or as excluded from provider model improvement. See https://ai.google.dev/gemini-api/docs/pricing/.
 
 ## AI services
 
