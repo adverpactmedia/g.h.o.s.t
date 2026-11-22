@@ -2,7 +2,7 @@ name: GHOST checks
 on:
   pull_request:
   push:
-    branches: [main]
+    branches: [main, google-workspace-agent-foundation]
 jobs:
   verify:
     runs-on: ubuntu-latest
