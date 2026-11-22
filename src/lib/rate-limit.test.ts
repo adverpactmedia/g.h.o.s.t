@@ -18,11 +18,14 @@ describe("shared G.H.O.S.T. rate limits", () => {
   });
 
   it("consumes separate IP and device buckets using hashed identifiers", async () => {
-    const fetchMock = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify([{ allowed: true, retry_after: 0, hit_count: 1 }]), {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      })
+    // Return a fresh Response for each call: response bodies are single-use.
+    const fetchMock = vi.fn().mockImplementation(() =>
+      Promise.resolve(
+        new Response(JSON.stringify([{ allowed: true, retry_after: 0, hit_count: 1 }]), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        })
+      )
     );
     vi.stubGlobal("fetch", fetchMock);
 
