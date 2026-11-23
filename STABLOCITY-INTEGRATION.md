@@ -30,7 +30,7 @@ A G.H.O.S.T. user reviews a completed Meeting Blueprint and exports a Markdown f
 - Reject the import if authorization fails. Do not silently move data to another workspace.
 
 ## Authorization limitation
-The existing STABLOCITY model supports workspace membership and write roles. It does not yet establish per-contract/deal access controls. Until record-level authorization is implemented consistently across list, detail, search, export and mutation paths, the product must not promise that only specifically authorized contract participants can access a deal. The integration can enforce current workspace-level authorization and same-workspace record validation, but that is a narrower guarantee.
+The currently deployed mainline still provides workspace-level authorization for this transfer. A draft implementation is now being developed in the STABLOCITY CRM and RM feature branches: deal access mode, per-user grants, permission-aware queries, linked-record filtering, and receiver-side checks for meeting attachments. Those changes are not merged or deployed. Do not claim that the live integration currently enforces deal-level confidentiality until both repositories pass the complete adversarial matrix and the changes are released.
 
 ## Release tests
 - Valid workspace-level import.
@@ -55,3 +55,53 @@ The existing STABLOCITY model supports workspace membership and write roles. It 
 
 ## What remains outside this transfer
 This Markdown handoff does not provide autonomous Zoom/Meet/Teams attendance, outbound email, calendar writes, task status synchronization, user accounts or cross-device G.H.O.S.T. history. Those are independent integrations and require separate provider credentials, data storage and authorization.
+
+
+## Voice BCRM and deal ACL dependency
+
+The planned voice agent must call STABLOCITY's same authenticated application action APIs and may not bypass workspace or deal-level permissions. Every imported meeting, attached activity and task must inherit the destination deal's authorization rules. The current integration is still workspace-scoped; complete per-deal ACL implementation and cross-user tests are a prerequisite to promising contract-level confidentiality.
+
+Planned cross-product workflow: user reviews a Meeting Blueprint, selects the destination deployment/workspace, selects only records they can access, previews the import, and confirms. The receiver rechecks permissions at commit time. External export/sync is a separate explicit user choice and does not move G.H.O.S.T. browser history into a mandatory cloud archive.
+
+
+## Deal-level authorization implementation dependency (draft, not deployed)
+
+The CRM and RM feature branches now contain the first implementation tranche:
+- Legacy deals migrate to `access_mode='workspace'` so the migration is additive.
+- Restricted deals are visible to their owner and users with an active, unexpired grant.
+- Grants have `view`, `edit`, or `manage` permission levels and cannot exceed the user's workspace role.
+- The meeting receiver rechecks the signed-in user's permission before attaching a meeting to a deal.
+- Deal-linked tasks, activities and meeting records are being filtered through the same authorization boundary.
+- The app's user-facing lists, search, counts, dashboards, reports, exports, audit views and mutation routes are being hardened.
+- Workspace-wide backups are temporarily blocked while restricted deals exist, because the current backup download model cannot safely redact restricted data.
+
+The CRM and RM regression suites now include a cross-user test for hiding a restricted deal, preventing disclosure through a contact detail view, rejecting unauthorized edits and task creation, granting view-only access, and applying revocation immediately. The latest observed CRM and RM test workflows passed this initial test tranche. This is not the full security release gate: route-by-route review, expiry tests, admin-without-grant tests, backup/restore review, audit review and deployed integration tests remain required.
+
+G.H.O.S.T. does not assign or transfer STABLOCITY permissions. A Markdown file is data, not an authorization token. The receiving STABLOCITY deployment remains the authority for the signed-in user's access to every selected record.
+
+
+## UI and ACL test update — 19 November 2026
+
+The unmerged STABLOCITY CRM and RM branches now include:
+- A deal-detail access panel for the deal owner and users with manage permission.
+- A restricted-deal inventory for explicit workspace owners/admins. It displays only deal ID, owner name and active-grant count, not deal title, value or notes.
+- Explicit confirmation before visibility changes, grants and revocations.
+- Receiver-side checks for G.H.O.S.T. meeting list/detail/import when a meeting is attached to a restricted deal.
+
+Latest automated evidence:
+- CRM workflow 124 passed: 14 tests and JavaScript syntax validation.
+- RM workflow 168 passed: 14 tests, Python compilation, deployment configuration validation, Docker build and container smoke test.
+- RM customer package workflow 105 passed.
+
+These tests are in the STABLOCITY repositories. They do not certify G.H.O.S.T. as an authorization system. G.H.O.S.T. continues to treat Markdown as a user-directed export; the receiving STABLOCITY deployment decides whether the signed-in user may attach or read the target deal. None of these changes are merged or deployed.
+
+
+## Additional receiver-side ACL lifecycle guarantees (draft branch, not deployed)
+
+The receiving STABLOCITY deployment remains the authority for access. The current CRM/RM feature branches now also:
+- Reduce an individual's deal grants to view when their workspace role is downgraded to viewer.
+- Revoke all deal grants when the individual is removed from that workspace; re-adding the account does not restore those grants.
+- Apply workspace-only visibility when internal deal/task/activity query or timeline helpers have no authenticated user context.
+- Reject grants to users who are not members of the target workspace and reject malformed grant-expiry timestamps.
+
+G.H.O.S.T. Markdown exports remain content handoffs only. They do not carry, create, or override STABLOCITY authorization. Every deal attachment and subsequent read must be checked by the receiving deployment for the signed-in user. These receiver-side changes are on unmerged CRM/RM feature branches and must not be represented as live production guarantees.

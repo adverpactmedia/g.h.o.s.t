@@ -94,3 +94,17 @@ A feature is complete only after:
 - Data deletion and retention behavior is verified.
 - The user-facing flow is tested on desktop and mobile.
 - Both STABLOCITY CRM and RM handoff paths pass authenticated end-to-end tests.
+
+
+## Voice BCRM programme update — 19 November 2026
+
+The intended direction is a mobile-first voice agent with per-user voice settings, controlled tools, visible interface actions and explicit confirmation for consequential operations. Automatic Zoom/Meet/Teams participation, direct provider email sending, calendar writes, external task synchronization and the full voice agent remain unimplemented until provider-level acceptance tests pass.
+
+Market claim control: do not call this the world's first voice CRM or world's first hands-free CRM. Public research already identifies Salesforce mobile voice/Agentforce features, SpeakCRM, Bliro, CRM Buddy and other voice-oriented CRM products. Position the combined product as a voice-operated BCRM under development; validate differentiation through shipped capabilities and a dated competitive review.
+
+Platform constraints verified from current official documentation:
+- Zoom RTMS provides live media/transcript streams without a participant bot, but requires Zoom credits and account/app authorization.
+- Google Meet REST supports meeting spaces, events and meeting artifacts. The Meet Media API Developer Preview is discontinued; existing access is scheduled to end 15 January 2027.
+- Microsoft states its Real-time Media Platform is not recommended for AI meeting-agent scenarios; transcript and Copilot Studio approaches require separate evaluation.
+
+These provider constraints are reasons to implement separate adapters and acceptance tests, not a single generic join switch.
