@@ -6,12 +6,13 @@ const request = (headers: Record<string, string> = {}) =>
 
 describe("shared G.H.O.S.T. rate limits", () => {
   beforeEach(() => {
-    process.env.NODE_ENV = "test";
+    vi.stubEnv("NODE_ENV", "test");
     process.env.SUPABASE_URL = "https://project.supabase.co";
     process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role-test-key-long-enough";
   });
   afterEach(() => {
     vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
     vi.restoreAllMocks();
     delete process.env.SUPABASE_URL;
     delete process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -37,7 +38,7 @@ describe("shared G.H.O.S.T. rate limits", () => {
     expect(mock).not.toHaveBeenCalled();
   });
   it("does not trust forwarded-for without the trusted edge IP in production", async () => {
-    process.env.NODE_ENV = "production";
+    vi.stubEnv("NODE_ENV", "production");
     const mock = vi.fn(); vi.stubGlobal("fetch", mock);
     const result = await checkRateLimit(request({ "x-forwarded-for": "203.0.113.10" }), "analyze", 12, 900);
     expect(result.storeAvailable).toBe(false);
