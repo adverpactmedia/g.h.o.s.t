@@ -63,7 +63,12 @@ export async function POST(request: Request) {
   let stage = "request";
   let uploadedFileName: string | undefined;
 
-  const limit = await checkRateLimit(request, "transcribe", 6, 15 * 60);
+  const limit = await checkRateLimit(
+    request,
+    "transcribe",
+    6,
+    15 * 60
+  );
 
   if (!limit.storeAvailable) {
     return NextResponse.json(
@@ -74,7 +79,9 @@ export async function POST(request: Request) {
 
   if (!limit.allowed) {
     return NextResponse.json(
-      { error: "Too many recordings. Please wait before trying again." },
+      {
+        error: "Too many recordings. Please wait before trying again.",
+      },
       {
         status: 429,
         headers: {
