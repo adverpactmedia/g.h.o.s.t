@@ -124,12 +124,19 @@ function noStoreHeaders(): HeadersInit {
 }
 
 export async function POST(request: Request) {
-  const limit = checkRateLimit(
+  const limit = await checkRateLimit(
     request,
     "analyze",
     12,
     15 * 60
   );
+
+  if (!limit.storeAvailable) {
+    return NextResponse.json(
+      { error: "Usage protection is unavailable. No analysis was started." },
+      { status: 503, headers: noStoreHeaders() }
+    );
+  }
 
   if (!limit.allowed) {
     return NextResponse.json(
