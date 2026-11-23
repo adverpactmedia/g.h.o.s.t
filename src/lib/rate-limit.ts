@@ -64,7 +64,8 @@ export async function checkRateLimit(
   request: Request,
   scope: string,
   maximum: number,
-  windowSeconds: number
+  windowSeconds: number,
+  userId?: string
 ): Promise<RateLimitResult> {
   const cfg = configuration();
   const identity = getClientIdentity(request);
@@ -76,6 +77,7 @@ export async function checkRateLimit(
   const keys = [
     bucketHash(cfg.serviceKey, "ip:" + scope + ":" + identity.ip),
     bucketHash(cfg.serviceKey, "device:" + scope + ":" + identity.ip + ":" + identity.userAgent),
+    ...(userId ? [bucketHash(cfg.serviceKey, "user:" + scope + ":" + userId)] : []),
   ];
   try {
     for (const key of keys) {
