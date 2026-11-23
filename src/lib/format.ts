@@ -175,7 +175,7 @@ export function speechLocaleForLanguage(
 export function makeSpokenSummary(
   result: Pick<MeetingResult, "summary" | "decisions" | "actionItems">
 ) {
-  const summary = cleanSentence(result.summary);
+  const summary = ensureSentenceEnd(result.summary);
 
   const decisions = result.decisions.length
     ? `Decisions: ${result.decisions
@@ -204,6 +204,12 @@ export function makeSpokenSummary(
     : "No clear action items were identified.";
 
   return [summary, decisions, actions].filter(Boolean).join(" ");
+}
+
+function ensureSentenceEnd(value: string): string {
+  const cleaned = value.trim();
+  if (!cleaned) return "";
+  return /[.!?…]$/.test(cleaned) ? cleaned : cleaned + ".";
 }
 
 function cleanSentence(value: string): string {
