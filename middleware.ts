@@ -1,7 +1,7 @@
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
-const PUBLIC_PATHS = ["/login", "/auth/callback", "/api/auth/signout"];
+const PUBLIC_PATHS = ["/login", "/auth/callback"];
 
 function isPublicPath(pathname: string) {
   return PUBLIC_PATHS.some((path) => pathname === path || pathname.startsWith(path + "/"));
@@ -11,7 +11,7 @@ export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // The private STABLOCITY bridge uses its own request-body HMAC authentication.
-  if (pathname.startsWith("/api/internal/")) return NextResponse.next();
+  if (pathname.startsWith("/api/")) return NextResponse.next();
   if (isPublicPath(pathname)) return NextResponse.next();
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim() || "";
@@ -22,7 +22,9 @@ export async function middleware(request: NextRequest) {
     const target = request.nextUrl.clone();
     target.pathname = "/login";
     target.searchParams.set("reason", "auth-not-configured");
-    return NextResponse.redirect(target);
+    const redirect = NextResponse.redirect(target);
+    redirect.headers.set("Cache-Control", "private, no-store");
+    return redirect;
   }
 
   let response = NextResponse.next({ request });
@@ -46,9 +48,12 @@ export async function middleware(request: NextRequest) {
     const target = request.nextUrl.clone();
     target.pathname = "/login";
     target.searchParams.set("next", pathname);
-    return NextResponse.redirect(target);
+    const redirect = NextResponse.redirect(target);
+    redirect.headers.set("Cache-Control", "private, no-store");
+    return redirect;
   }
 
+  response.headers.set("Cache-Control", "private, no-store");
   return response;
 }
 
