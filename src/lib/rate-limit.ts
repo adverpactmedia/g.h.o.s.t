@@ -9,26 +9,21 @@ type RateLimitResult = {
 function configuration() {
   const baseUrl = process.env.SUPABASE_URL?.trim().replace(/\/$/, "") || "";
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() || "";
-
-  if (!baseUrl.startsWith("https://") || serviceKey.length < 20) {
-    return null;
-  }
-
+  if (!baseUrl.startsWith("https://") || serviceKey.length < 20) return null;
   return { baseUrl, serviceKey };
 }
 
 function getClientIdentity(request: Request) {
-  // Vercel sets x-real-ip at its edge. Do not trust x-forwarded-for:
-  // callers can supply that header themselves.
+  // x-real-ip is set by Vercel at the trusted edge. Never trust caller-supplied x-forwarded-for.
   const ip = request.headers.get("x-real-ip")?.trim() || "";
   const userAgent = request.headers.get("user-agent")?.trim() || "";
+  if (ip && ip.length <= 128) return { ip, userAgent: userAgent.slice(0, 512) || "unknown" };
 
-  if (!ip || ip.length > 128) return null;
-
-  return {
-    ip,
-    userAgent: userAgent.slice(0, 512) || "unknown",
-  };
+  // Local development has no trusted edge header. Keep it isolated to one local bucket.
+  if (process.env.NODE_ENV !== "production") {
+    return { ip: "local-development", userAgent: userAgent.slice(0, 512) || "unknown" };
+  }
+  return null;
 }
 
 function bucketHash(secret: string, value: string): string {
@@ -57,21 +52,12 @@ async function consume(
     cache: "no-store",
     signal: AbortSignal.timeout(3000),
   });
-
   if (!response.ok) return null;
-
   const value: unknown = await response.json();
-  if (!Array.isArray(value) || !value[0] || typeof value[0].allowed !== "boolean") {
-    return null;
-  }
-
+  if (!Array.isArray(value) || !value[0] || typeof value[0].allowed !== "boolean") return null;
   const retryAfter = Number(value[0].retry_after);
   if (!Number.isFinite(retryAfter) || retryAfter < 0) return null;
-
-  return {
-    allowed: value[0].allowed,
-    retryAfter: Math.max(1, Math.ceil(retryAfter)),
-  };
+  return { allowed: value[0].allowed, retryAfter: value[0].allowed ? 0 : Math.max(1, Math.ceil(retryAfter)) };
 }
 
 export async function checkRateLimit(
@@ -82,9 +68,6 @@ export async function checkRateLimit(
 ): Promise<RateLimitResult> {
   const cfg = configuration();
   const identity = getClientIdentity(request);
-
-  // Fail closed in production if the shared quota store or trusted edge IP
-  // is unavailable. Never fall back to process-local limits for provider work.
   if (!cfg || !identity || !Number.isInteger(maximum) || maximum < 1 ||
       !Number.isInteger(windowSeconds) || windowSeconds < 1) {
     return { allowed: false, retryAfter: 60, storeAvailable: false };
@@ -94,26 +77,12 @@ export async function checkRateLimit(
     bucketHash(cfg.serviceKey, "ip:" + scope + ":" + identity.ip),
     bucketHash(cfg.serviceKey, "device:" + scope + ":" + identity.ip + ":" + identity.userAgent),
   ];
-
   try {
     for (const key of keys) {
-      const result = await consume(
-        cfg.baseUrl,
-        cfg.serviceKey,
-        key,
-        maximum,
-        windowSeconds
-      );
-
-      if (!result) {
-        return { allowed: false, retryAfter: 60, storeAvailable: false };
-      }
-
-      if (!result.allowed) {
-        return { allowed: false, retryAfter: result.retryAfter, storeAvailable: true };
-      }
+      const result = await consume(cfg.baseUrl, cfg.serviceKey, key, maximum, windowSeconds);
+      if (!result) return { allowed: false, retryAfter: 60, storeAvailable: false };
+      if (!result.allowed) return { allowed: false, retryAfter: result.retryAfter, storeAvailable: true };
     }
-
     return { allowed: true, retryAfter: 0, storeAvailable: true };
   } catch {
     return { allowed: false, retryAfter: 60, storeAvailable: false };
