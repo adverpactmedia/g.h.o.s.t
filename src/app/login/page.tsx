@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { useState, type FormEvent } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 
 export default function LoginPage() {
@@ -43,13 +43,13 @@ export default function LoginPage() {
 
   return (
     <main className="shell" style={{ minHeight: "100vh", display: "grid", placeItems: "center", padding: 24 }}>
-      <section className="panel" style={{ width: "100%", maxWidth: 440, padding: 32 }}>
+      <section className="capture-panel" style={{ width: "100%", maxWidth: 440, padding: 32 }}>
         <div className="eyebrow"><span className="live-dot" /> G.H.O.S.T. ACCOUNT ACCESS</div>
         <h1 style={{ marginTop: 16 }}>Sign in to G.H.O.S.T.</h1>
         <p className="hero-copy" style={{ marginTop: 12 }}>Enter your email and we will send you a one-time sign-in link. No password required.</p>
         <form onSubmit={submit} style={{ display: "grid", gap: 14, marginTop: 24 }}>
           <label htmlFor="ghost-email">Email address</label>
-          <input id="ghost-email" type="email" autoComplete="email" required value={email} onChange={(event) => setEmail(event.target.value)} placeholder="you@company.com" />
+          <input id="ghost-email" className="text-input" type="email" autoComplete="email" required value={email} onChange={(event) => setEmail(event.target.value)} placeholder="you@company.com" />
           <button className="primary-button" type="submit" disabled={busy || !email.trim()}>{busy ? "Sending link..." : "Email me a sign-in link"}</button>
         </form>
         {message ? <p role="status" style={{ marginTop: 18 }}>{message}</p> : null}
