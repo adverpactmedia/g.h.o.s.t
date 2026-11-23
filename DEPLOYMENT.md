@@ -37,9 +37,15 @@ Never commit `.env.local`. Never expose the API key through a `NEXT_PUBLIC_` var
 | Variable | Required | Purpose |
 |---|---:|---|
 | `GEMINI_API_KEY` | Yes | Server-side key used for audio transcription and meeting analysis. |
+| `NEXT_PUBLIC_SUPABASE_URL` | Yes | Dedicated G.H.O.S.T. Supabase project URL used by Supabase Auth. |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Yes | Supabase publishable/anon key for browser and server session handling. |
+| `SUPABASE_URL` | Yes | Same dedicated G.H.O.S.T. project URL for server-only database operations. |
+| `SUPABASE_SERVICE_ROLE_KEY` | Yes | Server-only service-role key for rate limits and internal event storage. Never expose it to browser code. |
 | `SUPABASE_URL` | Yes for production API use | Existing Supabase project URL for shared atomic rate limits and durable internal-event claims. |
 | `SUPABASE_SERVICE_ROLE_KEY` | Yes for production API use | Server-only service-role key; never expose to browser code. |
 | `STABLOCITY_GHOST_WEBHOOK_SECRET` | Optional until STABLOCITY handoff is enabled | Shared secret (32+ characters) for HMAC-authenticated STABLOCITY transcript submissions. |
+
+The sign-in flow uses Supabase passwordless email links. In Supabase Authentication settings, enable email OTP/magic links and add the exact callback URLs for the production domain, the intended Vercel preview domain, and local development (for example `https://g-h-o-s-t-drab.vercel.app/auth/callback` and `http://localhost:3000/auth/callback`). Do not add broad wildcard redirect URLs.
 
 The current application does not use the old OpenAI environment variables.
 
@@ -65,13 +71,14 @@ The development branch adds a private `POST /api/internal/meetings/analyze` endp
 1. Open the G.H.O.S.T. project in Vercel.
 2. Open Project Settings.
 3. Open Environment Variables.
-4. Add `GEMINI_API_KEY`.
-5. Apply it to the Production environment.
-6. Confirm the value is correct.
-7. Redeploy after changing the environment variable.
-8. Wait for the deployment to report Ready.
-9. Open the production URL over HTTPS.
-10. Complete the user-side tests in the launch checklist.
+4. Add `GEMINI_API_KEY`, `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `GHOST_SESSION_SECRET` and `STABLOCITY_GHOST_WEBHOOK_SECRET` only in the environments where each integration is enabled.
+5. Apply the SQL migrations in `supabase/migrations/` to the dedicated G.H.O.S.T. Supabase project.
+6. Configure the Supabase Auth email provider and exact redirect URLs.
+7. Keep the service-role and webhook secrets server-only.
+8. Redeploy after changing environment variables.
+9. Wait for the deployment to report Ready.
+10. Test sign-in, sign-out, API denial without a session, and successful authenticated requests.
+11. Open the production URL over HTTPS and complete the remaining launch checklist.
 
 Keep deployment protection enabled during the initial test period. **Current project check (2026-11-22):** password, SSO and trusted-IP protection are disabled in the Vercel project. Treat branch preview URLs as publicly reachable; do not share them with customers or place production secrets in Preview environment scope. The public production domain remains on the `main` branch. If private preview testing is required, enable Preview-only protection before sharing preview URLs.
 
@@ -102,17 +109,27 @@ Do not describe the service as zero-retention, encrypted cloud storage, or compl
 
 Users must obtain all required participant consent and must not submit confidential conversations unless they have permission and have reviewed the relevant provider terms.
 
+## Authentication and access control
+
+- The app pages require a verified Supabase Auth session.
+- The public analysis, transcription and meeting-assistant APIs require a verified signed-in user.
+- Analysis, transcription and assistant quotas include an HMAC-hashed user identifier as well as hashed IP/device buckets.
+- The private STABLOCITY webhook remains separate and requires its own HMAC signature over the exact request body, event ID and timestamp.
+- The analysis polling endpoint uses a short-lived bearer capability bound to one Gemini interaction ID. Treat that token as a secret.
+- Meeting history remains in browser local storage. Authentication does not yet create cloud sync, shared workspaces, team roles, or server-side meeting ownership.
+
+The Supabase service-role key is used only by server-side code for the private rate-limit and internal-event operations. It must never be included in browser bundles or environment variables prefixed with `NEXT_PUBLIC_`.
+
 ## Security and launch boundary
 
 The current application is an early MVP.
 
 Important limitations:
 
-- API routes do not currently require user accounts or sign-in; anonymous access is still possible.
-- The integration branch replaces process-local limits with shared atomic Supabase quotas keyed by the trusted Vercel edge IP and a hashed IP/user-agent bucket.
-- The shared quota store is a cost-control layer, not proof against determined abuse, VPN rotation or distributed bot traffic.
-- If Supabase is missing or unavailable, transcription and analysis requests are rejected before provider work begins.
-- There is no account system, user-level identity quota, payment enforcement or team access control.
+- Authentication code is present in the candidate branch but is not active until the Supabase public URL/key, server-only service-role key and email redirect configuration are supplied and verified.
+- Shared atomic Supabase quotas enforce hashed IP/device/user buckets; this is a cost-control layer, not proof against distributed abuse or VPN rotation.
+- If Supabase is missing or unavailable, public AI requests fail closed before provider work begins.
+- There is no cloud meeting history, workspace isolation, team-role model, payment enforcement or per-plan entitlement system.
 
 For initial testing, keep the Vercel deployment protected and share access only with intended testers.
 
