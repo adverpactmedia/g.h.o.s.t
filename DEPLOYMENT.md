@@ -6,6 +6,7 @@
 - Node.js 20.9 or newer
 - npm
 - A Google Gemini API key
+- A dedicated Supabase project for shared usage limits
 - A Vercel project connected to this repository
 - HTTPS for production browser audio capture
 
@@ -20,6 +21,9 @@ Add your Gemini API key to `.env.local`:
 
 ```bash
 GEMINI_API_KEY=your_gemini_api_key
+SUPABASE_URL=https://your-ghost-project.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=your-server-only-service-role-key
+GHOST_SESSION_SECRET=your-independent-random-secret
 ```
 
 Start the development server:
@@ -37,6 +41,9 @@ Never commit `.env.local`. Never expose the API key through a `NEXT_PUBLIC_` var
 | Variable | Required | Purpose |
 |---|---:|---|
 | `GEMINI_API_KEY` | Yes | Server-side key used for audio transcription and meeting analysis. |
+| `SUPABASE_URL` | Yes in production | Dedicated G.H.O.S.T. Supabase project URL for shared rate limits. |
+| `SUPABASE_SERVICE_ROLE_KEY` | Yes in production | Server-only key for the private rate-limit RPC. Never expose it to the browser or use a `NEXT_PUBLIC_` prefix. |
+| `GHOST_SESSION_SECRET` | Recommended | Independent secret for signed analysis-poll tokens. |
 
 The current application does not use the old OpenAI environment variables.
 
@@ -58,13 +65,14 @@ A successful deployment does not by itself prove that the configured API key, mo
 1. Open the G.H.O.S.T. project in Vercel.
 2. Open Project Settings.
 3. Open Environment Variables.
-4. Add `GEMINI_API_KEY`.
-5. Apply it to the Production environment.
-6. Confirm the value is correct.
-7. Redeploy after changing the environment variable.
-8. Wait for the deployment to report Ready.
-9. Open the production URL over HTTPS.
-10. Complete the user-side tests in the launch checklist.
+4. Add `GEMINI_API_KEY`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` and `GHOST_SESSION_SECRET`.
+5. Apply them to the Production environment.
+6. Apply `supabase/migrations/20261123_ghost_rate_limits.sql` to the dedicated G.H.O.S.T. Supabase project.
+7. Confirm the service-role key belongs to that project and remains server-only.
+8. Redeploy after changing environment variables.
+9. Wait for the deployment to report Ready.
+10. Open the production URL over HTTPS.
+11. Complete the user-side tests in the launch checklist.
 
 Keep deployment protection enabled during the initial test period.
 
@@ -102,8 +110,9 @@ The current application is an early MVP.
 Important limitations:
 
 - API routes do not currently require user authentication.
-- The current rate limiter uses process memory and is not a reliable distributed abuse-control system.
-- Anyone who can reach an unprotected deployment may be able to call the AI endpoints and generate API usage.
+- Shared rate limiting uses atomic Supabase RPC buckets keyed by HMAC-hashed IP and IP/user-agent values. It fails closed if the Supabase store or trusted Vercel `x-real-ip` header is unavailable.
+- This limits anonymous quota abuse but is not user authentication, per-user entitlement enforcement, or protection against distributed IP abuse.
+- Anyone who can reach an unprotected deployment may still call AI endpoints within the shared limits.
 - There is no account system, user-level quota, payment enforcement, or team access control.
 
 For initial testing, keep the Vercel deployment protected and share access only with intended testers.
