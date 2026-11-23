@@ -312,12 +312,19 @@ export async function POST(request: Request) {
 }
 
 export async function GET(request: Request) {
-  const limit = checkRateLimit(
+  const limit = await checkRateLimit(
     request,
     "analyze-poll",
     180,
     15 * 60
   );
+
+  if (!limit.storeAvailable) {
+    return NextResponse.json(
+      { error: "Usage protection is unavailable. Please retry shortly." },
+      { status: 503, headers: noStoreHeaders() }
+    );
+  }
 
   if (!limit.allowed) {
     return NextResponse.json(
