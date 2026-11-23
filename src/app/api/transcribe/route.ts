@@ -63,12 +63,19 @@ export async function POST(request: Request) {
   let stage = "request";
   let uploadedFileName: string | undefined;
 
-  const limit = checkRateLimit(
+  const limit = await checkRateLimit(
     request,
     "transcribe",
     6,
     15 * 60
   );
+
+  if (!limit.storeAvailable) {
+    return NextResponse.json(
+      { error: "Usage protection is unavailable. No audio was uploaded." },
+      { status: 503, headers: { "Cache-Control": "no-store" } }
+    );
+  }
 
   if (!limit.allowed) {
     return NextResponse.json(
