@@ -18,7 +18,7 @@ describe("shared G.H.O.S.T. rate limits", () => {
     delete process.env.SUPABASE_SERVICE_ROLE_KEY;
   });
   it("uses separate hashed IP and device buckets", async () => {
-    const mock = vi.fn().mockResolvedValue(new Response(JSON.stringify([{ allowed: true, retry_after: 0 }]), { status: 200 }));
+    const mock = vi.fn().mockImplementation(() => new Response(JSON.stringify([{ allowed: true, retry_after: 0 }]), { status: 200 }));
     vi.stubGlobal("fetch", mock);
     const result = await checkRateLimit(request({ "x-real-ip": "203.0.113.10", "x-forwarded-for": "198.51.100.99", "user-agent": "Test Browser" }), "analyze", 12, 900);
     expect(result).toEqual({ allowed: true, retryAfter: 0, storeAvailable: true });
