@@ -30,6 +30,25 @@ describe("shared G.H.O.S.T. rate limits", () => {
     expect(first.p_bucket_key).not.toBe(second.p_bucket_key);
     expect(JSON.stringify([first, second])).not.toContain("203.0.113.10");
   });
+  it("adds a hashed per-user bucket without storing the user ID", async () => {
+    const mock = vi.fn().mockImplementation(() =>
+      new Response(JSON.stringify([{ allowed: true, retry_after: 0 }]), { status: 200 })
+    );
+    vi.stubGlobal("fetch", mock);
+    const result = await checkRateLimit(
+      request({ "x-real-ip": "203.0.113.10", "user-agent": "Test Browser" }),
+      "analyze",
+      12,
+      900,
+      "user-123"
+    );
+    expect(result).toEqual({ allowed: true, retryAfter: 0, storeAvailable: true });
+    expect(mock).toHaveBeenCalledTimes(3);
+    const bodies = mock.mock.calls.map((call) => JSON.parse(String(call[1]?.body)));
+    expect(bodies[2].p_bucket_key).toMatch(/^[a-f0-9]{64}$/);
+    expect(JSON.stringify(bodies)).not.toContain("user-123");
+  });
+
   it("fails closed when Supabase is not configured", async () => {
     delete process.env.SUPABASE_URL;
     const mock = vi.fn(); vi.stubGlobal("fetch", mock);
