@@ -16,10 +16,16 @@ npm install
 cp .env.example .env.local
 ```
 
-Add your Gemini API key to `.env.local`:
+Add the required values to `.env.local` from your dedicated G.H.O.S.T. Supabase project:
 
 ```bash
 GEMINI_API_KEY=your_gemini_api_key
+NEXT_PUBLIC_SUPABASE_URL=https://your-ghost-project.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-public-anon-or-publishable-key
+SUPABASE_URL=https://your-ghost-project.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=your-server-only-service-role-key
+GHOST_SESSION_SECRET=your-independent-random-secret
+STABLOCITY_GHOST_WEBHOOK_SECRET=your-shared-server-only-webhook-secret
 ```
 
 Start the development server:
@@ -41,8 +47,6 @@ Never commit `.env.local`. Never expose the API key through a `NEXT_PUBLIC_` var
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Yes | Supabase publishable/anon key for browser and server session handling. |
 | `SUPABASE_URL` | Yes | Same dedicated G.H.O.S.T. project URL for server-only database operations. |
 | `SUPABASE_SERVICE_ROLE_KEY` | Yes | Server-only service-role key for rate limits and internal event storage. Never expose it to browser code. |
-| `SUPABASE_URL` | Yes for production API use | Existing Supabase project URL for shared atomic rate limits and durable internal-event claims. |
-| `SUPABASE_SERVICE_ROLE_KEY` | Yes for production API use | Server-only service-role key; never expose to browser code. |
 | `STABLOCITY_GHOST_WEBHOOK_SECRET` | Optional until STABLOCITY handoff is enabled | Shared secret (32+ characters) for HMAC-authenticated STABLOCITY transcript submissions. |
 
 The sign-in flow uses Supabase passwordless email links. In Supabase Authentication settings, enable email OTP/magic links and add the exact callback URLs for the production domain, the intended Vercel preview domain, and local development (for example `https://g-h-o-s-t-drab.vercel.app/auth/callback` and `http://localhost:3000/auth/callback`). Do not add broad wildcard redirect URLs.
@@ -126,10 +130,10 @@ The current application is an early MVP.
 
 Important limitations:
 
-- Authentication code is present in the candidate branch but is not active until the Supabase public URL/key, server-only service-role key and email redirect configuration are supplied and verified.
+- The candidate adds Supabase email-link authentication and verified-session checks for app pages and public AI endpoints. It is not active until the Supabase public URL/key, server-only service-role key and email redirect configuration are supplied and verified.
 - Shared atomic Supabase quotas enforce hashed IP/device/user buckets; this is a cost-control layer, not proof against distributed abuse or VPN rotation.
 - If Supabase is missing or unavailable, public AI requests fail closed before provider work begins.
-- There is no cloud meeting history, workspace isolation, team-role model, payment enforcement or per-plan entitlement system.
+- Meeting history remains browser-local. There is no cloud meeting history, workspace isolation, team-role model, payment enforcement or per-plan entitlement system.
 
 For initial testing, keep the Vercel deployment protected and share access only with intended testers.
 
