@@ -10,7 +10,7 @@ function isPublicPath(pathname: string) {
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // The private STABLOCITY bridge uses its own request-body HMAC authentication.
+  // API routes enforce their own authentication or the private webhook HMAC.
   if (pathname.startsWith("/api/")) return NextResponse.next();
   if (isPublicPath(pathname)) return NextResponse.next();
 
@@ -18,7 +18,6 @@ export async function middleware(request: NextRequest) {
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim() || "";
 
   if (!supabaseUrl.startsWith("https://") || supabaseAnonKey.length < 20) {
-    if (pathname.startsWith("/api/")) return NextResponse.next();
     const target = request.nextUrl.clone();
     target.pathname = "/login";
     target.searchParams.set("reason", "auth-not-configured");
@@ -42,8 +41,6 @@ export async function middleware(request: NextRequest) {
   });
 
   const { data, error } = await supabase.auth.getUser();
-  if (pathname.startsWith("/api/")) return response;
-
   if (error || !data.user) {
     const target = request.nextUrl.clone();
     target.pathname = "/login";
