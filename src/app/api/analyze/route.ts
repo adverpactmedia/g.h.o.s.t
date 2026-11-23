@@ -1,5 +1,6 @@
 
 import { NextResponse } from "next/server";
+import { getAuthenticatedUser } from "@/lib/supabase/server";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import {
   analyzeSchema,
@@ -119,7 +120,15 @@ export async function POST(request: Request) {
     request.headers.get("x-ghost-internal-forward") === internalSecret;
 
   if (!trustedInternalForward) {
-    const limit = await checkRateLimit(request, "analyze", 12, 15 * 60);
+    const auth = await getAuthenticatedUser();
+    if (!auth.configured) {
+      return NextResponse.json({ error: "Sign-in is not configured." }, { status: 503, headers: noStoreHeaders() });
+    }
+    if (!auth.user) {
+      return NextResponse.json({ error: "Sign in is required to analyze a meeting." }, { status: 401, headers: noStoreHeaders() });
+    }
+
+    const limit = await checkRateLimit(request, "analyze", 12, 15 * 60, auth.user.id);
 
     if (!limit.storeAvailable) {
       return NextResponse.json(
