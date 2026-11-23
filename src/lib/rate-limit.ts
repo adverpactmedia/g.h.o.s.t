@@ -57,7 +57,7 @@ async function consume(
   if (!Array.isArray(value) || !value[0] || typeof value[0].allowed !== "boolean") return null;
   const retryAfter = Number(value[0].retry_after);
   if (!Number.isFinite(retryAfter) || retryAfter < 0) return null;
-  return { allowed: value[0].allowed, retryAfter: Math.max(1, Math.ceil(retryAfter)) };
+  return { allowed: value[0].allowed, retryAfter: value[0].allowed ? 0 : Math.max(1, Math.ceil(retryAfter)) };
 }
 
 export async function checkRateLimit(
