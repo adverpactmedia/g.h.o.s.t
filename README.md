@@ -67,7 +67,7 @@ The current version does not:
 - Create calendar events or reminders.
 - Track whether assigned tasks are completed.
 - Sync meeting history between devices.
-- Provide user accounts or team workspaces.
+- Provide shared team workspaces, shared meeting records or team-role permissions. Supabase passwordless email-link sign-in is included in the current candidate, but it must be configured and verified before it is available to users; sign-in does not create cloud-synced meeting history.
 - Provide subscription billing.
 - Accept MP4/video uploads or standalone audio-file uploads.
 
