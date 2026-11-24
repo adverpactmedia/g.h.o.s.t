@@ -175,24 +175,26 @@ A rollback does not restore browser local storage that a user has cleared or los
 
 ## Current release scope
 
-The initial release is limited to:
+The current candidate includes:
 
-- Browser-based audio capture
+- Supabase passwordless email-link sign-in and protected application/API routes, once the required Supabase environment variables, migrations and Auth redirect settings are configured
+- Browser-based audio capture and transcript import
 - Transcript review and editing
 - AI-generated Meeting Blueprints
 - Saved browser-local meeting history
 - Copy and Markdown export
 - Spoken recap where browser speech synthesis is supported
+- A private HMAC-authenticated endpoint for STABLOCITY to submit a transcript for analysis
 
-The following are not currently included:
+The following are not included or are not verified in this release:
 
-- User accounts
-- Cloud-synced meeting history
-- Team workspaces
-- Automatic meeting-platform joining
-- Calendar or CRM integrations
+- Cloud-synced meeting history or cross-device recovery
+- Team workspaces, shared meeting records or team-role permissions
+- Automatic joining of Google Meet or other meeting platforms
+- Automatic Meet event subscriptions or Pub/Sub ingestion by G.H.O.S.T. itself
+- Full two-way CRM synchronization or general-purpose Calendar integration
 - Email sending
 - Task reminders or completion tracking
-- Subscription billing
+- Subscription billing or per-plan entitlements
 
-Do not advertise unavailable capabilities as current product features.
+Authentication does not make browser-local meeting history cloud-backed. The STABLOCITY endpoint accepts signed transcript submissions; it does not make G.H.O.S.T. an automatic meeting bot. Do not advertise unavailable or unverified capabilities as current product features.
