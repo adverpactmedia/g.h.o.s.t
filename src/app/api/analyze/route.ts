@@ -22,6 +22,11 @@ type Interaction = {
   id?: string;
   status?: string;
   error?: unknown;
+  errors?: Array<{
+    code?: string;
+    message?: string;
+    status?: string;
+  }>;
   output_text?: string;
   steps?: Array<{
     type?: string;
@@ -432,11 +437,21 @@ export async function GET(request: Request) {
     await deleteStoredInteraction(id, apiKey);
 
     if (interaction.status !== "completed") {
+      const providerErrors = Array.isArray(interaction.errors)
+        ? interaction.errors.slice(0, 3).map((item) => ({
+            code: typeof item?.code === "string" ? item.code.slice(0, 120) : undefined,
+            status: typeof item?.status === "string" ? item.status.slice(0, 120) : undefined,
+            message: typeof item?.message === "string" ? item.message.slice(0, 400) : undefined,
+          }))
+        : [];
       console.error("GHOST interaction ended unsuccessfully:", {
         status: interaction.status,
+        errors: providerErrors,
         error: isRecord(interaction.error)
           ? interaction.error
-          : undefined,
+          : typeof interaction.error === "string"
+            ? interaction.error.slice(0, 400)
+            : undefined,
       });
 
       return NextResponse.json(
