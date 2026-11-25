@@ -175,7 +175,8 @@ export function speechLocaleForLanguage(
 export function makeSpokenSummary(
   result: Pick<MeetingResult, "summary" | "decisions" | "actionItems">
 ) {
-  const summary = cleanSentence(result.summary);
+  const cleanSummary = cleanSentence(result.summary);
+  const summary = cleanSummary ? `${cleanSummary}.` : "";
 
   const decisions = result.decisions.length
     ? `Decisions: ${result.decisions

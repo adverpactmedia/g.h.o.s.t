@@ -699,8 +699,11 @@ export default function GhostApp() {
         <div className="top-actions">
           <span className="privacy">
             <ShieldCheck size={14} />
-            Browser-local history
+            Signed-in · browser-local history
           </span>
+          <form method="post" action="/api/auth/signout">
+            <button className="secondary-button" type="submit">Sign out</button>
+          </form>
           <a
             className="stablocity-nav-link"
             href="https://stablocity-buisness-relationship.onrender.com/"

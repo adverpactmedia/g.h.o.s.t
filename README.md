@@ -67,7 +67,7 @@ The current version does not:
 - Create calendar events or reminders.
 - Track whether assigned tasks are completed.
 - Sync meeting history between devices.
-- Provide user accounts or team workspaces.
+- Provide shared team workspaces, shared meeting records or team-role permissions. Supabase passwordless email-link sign-in is included in the current candidate, but it must be configured and verified before it is available to users; sign-in does not create cloud-synced meeting history.
 - Provide subscription billing.
 - Accept MP4/video uploads or standalone audio-file uploads.
 
@@ -90,6 +90,7 @@ Do not submit confidential, regulated or sensitive conversations unless you have
 - Node.js 20.9 or newer
 - npm
 - A Google Gemini API key
+- The existing Supabase project for shared API quotas and durable internal meeting-event idempotency
 - A modern browser
 - HTTPS in production
 
@@ -100,6 +101,16 @@ For the most reliable first test of shared-tab audio, use a current desktop Chro
 ```bash
 npm install
 cp .env.example .env.local
+# Configure GEMINI_API_KEY, SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY; apply both Supabase migrations before production API use
+
+
+## Private STABLOCITY meeting handoff
+
+The private `POST /api/internal/meetings/analyze` endpoint accepts only signed server-to-server requests from STABLOCITY. It verifies the HMAC over the exact request body, timestamp and event ID, rejects stale or malformed signatures, and enforces a 150 KB request limit.
+
+The development branch includes durable replay-protection code using the G.H.O.S.T. Supabase project. This is not active in production until the PR is merged, `supabase/migrations/20261120_ghost_internal_events.sql` is applied, and `SUPABASE_URL` plus the server-only `SUPABASE_SERVICE_ROLE_KEY` are configured in Vercel. The endpoint fails closed when the event store is not configured. It stores only the event ID, request-body hash, processing state and Gemini interaction ID; it does not store transcripts, Google OAuth tokens or poll tokens. Repeated requests with the same event ID and body return the existing interaction; reuse of an event ID with a different body is rejected.
+
+The sender and receiver remain separate services. STABLOCITY owns Google OAuth, Meet/Pub/Sub access, transcript retrieval and workspace authorization. G.H.O.S.T. processes the transcript and returns a Blueprint. STABLOCITY stores the result in its own workspace database and presents it to the user for review.
 
 ## STABLOCITY complimentary companion
 

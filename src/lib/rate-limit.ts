@@ -1,97 +1,92 @@
-type RateLimitEntry = {
-  count: number;
-  resetAt: number;
+import { createHmac } from "node:crypto";
+
+type RateLimitResult = {
+  allowed: boolean;
+  retryAfter: number;
+  storeAvailable: boolean;
 };
 
-type RateLimitStore = Map<string, RateLimitEntry>;
-
-const MAX_ENTRIES = 5_000;
-
-const globalStore = globalThis as typeof globalThis & {
-  __ghostRateLimitStore?: RateLimitStore;
-};
-
-const store =
-  globalStore.__ghostRateLimitStore ??
-  (globalStore.__ghostRateLimitStore = new Map());
-
-function getClientIdentifier(request: Request): string {
-  // Vercel supplies x-real-ip at the platform boundary.
-  // The forwarded header is retained as a fallback for local environments.
-  const realIp = request.headers.get("x-real-ip")?.trim();
-
-  if (realIp) return realIp;
-
-  const forwarded = request.headers
-    .get("x-forwarded-for")
-    ?.split(",")[0]
-    ?.trim();
-
-  return forwarded || "unknown";
+function configuration() {
+  const baseUrl = process.env.SUPABASE_URL?.trim().replace(/\/$/, "") || "";
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() || "";
+  if (!baseUrl.startsWith("https://") || serviceKey.length < 20) return null;
+  return { baseUrl, serviceKey };
 }
 
-function removeExpiredEntries(now: number) {
-  for (const [key, entry] of store.entries()) {
-    if (entry.resetAt <= now) {
-      store.delete(key);
-    }
+function getClientIdentity(request: Request) {
+  // x-real-ip is set by Vercel at the trusted edge. Never trust caller-supplied x-forwarded-for.
+  const ip = request.headers.get("x-real-ip")?.trim() || "";
+  const userAgent = request.headers.get("user-agent")?.trim() || "";
+  if (ip && ip.length <= 128) return { ip, userAgent: userAgent.slice(0, 512) || "unknown" };
+
+  // Local development has no trusted edge header. Keep it isolated to one local bucket.
+  if (process.env.NODE_ENV !== "production") {
+    return { ip: "local-development", userAgent: userAgent.slice(0, 512) || "unknown" };
   }
+  return null;
 }
 
-function makeRoom() {
-  while (store.size >= MAX_ENTRIES) {
-    const oldestKey = store.keys().next().value;
-
-    if (oldestKey === undefined) break;
-
-    store.delete(oldestKey);
-  }
+function bucketHash(secret: string, value: string): string {
+  return createHmac("sha256", secret).update(value, "utf8").digest("hex");
 }
 
-export function checkRateLimit(
+async function consume(
+  baseUrl: string,
+  serviceKey: string,
+  bucketKey: string,
+  maximum: number,
+  windowSeconds: number
+): Promise<{ allowed: boolean; retryAfter: number } | null> {
+  const response = await fetch(baseUrl + "/rest/v1/rpc/ghost_consume_rate_limit", {
+    method: "POST",
+    headers: {
+      apikey: serviceKey,
+      Authorization: "Bearer " + serviceKey,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      p_bucket_key: bucketKey,
+      p_limit: maximum,
+      p_window_seconds: windowSeconds,
+    }),
+    cache: "no-store",
+    signal: AbortSignal.timeout(3000),
+  });
+  if (!response.ok) return null;
+  const value: unknown = await response.json();
+  if (!Array.isArray(value) || !value[0] || typeof value[0].allowed !== "boolean") return null;
+  const retryAfter = Number(value[0].retry_after);
+  if (!Number.isFinite(retryAfter) || retryAfter < 0) return null;
+  return { allowed: value[0].allowed, retryAfter: value[0].allowed ? 0 : Math.max(1, Math.ceil(retryAfter)) };
+}
+
+export async function checkRateLimit(
   request: Request,
   scope: string,
   maximum: number,
-  windowSeconds: number
-) {
-  const now = Date.now();
-  const windowMs = windowSeconds * 1000;
-  const identifier = getClientIdentifier(request);
-  const key = `${scope}:${identifier}`;
-
-  removeExpiredEntries(now);
-
-  const existing = store.get(key);
-
-  if (!existing || existing.resetAt <= now) {
-    makeRoom();
-
-    store.set(key, {
-      count: 1,
-      resetAt: now + windowMs,
-    });
-
-    return {
-      allowed: true,
-      retryAfter: 0,
-    };
+  windowSeconds: number,
+  userId?: string
+): Promise<RateLimitResult> {
+  const cfg = configuration();
+  const identity = getClientIdentity(request);
+  if (!cfg || !identity || !Number.isInteger(maximum) || maximum < 1 ||
+      !Number.isInteger(windowSeconds) || windowSeconds < 1) {
+    return { allowed: false, retryAfter: 60, storeAvailable: false };
   }
 
-  if (existing.count >= maximum) {
-    return {
-      allowed: false,
-      retryAfter: Math.max(
-        1,
-        Math.ceil((existing.resetAt - now) / 1000)
-      ),
-    };
+  const keys = [
+    bucketHash(cfg.serviceKey, "ip:" + scope + ":" + identity.ip),
+    bucketHash(cfg.serviceKey, "device:" + scope + ":" + identity.ip + ":" + identity.userAgent),
+    ...(userId ? [bucketHash(cfg.serviceKey, "user:" + scope + ":" + userId)] : []),
+  ];
+  try {
+    for (const key of keys) {
+      const result = await consume(cfg.baseUrl, cfg.serviceKey, key, maximum, windowSeconds);
+      if (!result) return { allowed: false, retryAfter: 60, storeAvailable: false };
+      if (!result.allowed) return { allowed: false, retryAfter: result.retryAfter, storeAvailable: true };
+    }
+    return { allowed: true, retryAfter: 0, storeAvailable: true };
+  } catch {
+    return { allowed: false, retryAfter: 60, storeAvailable: false };
   }
-
-  existing.count += 1;
-  store.set(key, existing);
-
-  return {
-    allowed: true,
-    retryAfter: 0,
-  };
 }

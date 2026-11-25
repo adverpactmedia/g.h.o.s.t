@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { getAuthenticatedUser } from "@/lib/supabase/server";
 import { checkRateLimit } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
@@ -9,7 +10,21 @@ function noStoreHeaders() {
 }
 
 export async function POST(request: Request) {
-  const limit = checkRateLimit(request, "assistant-chat", 12, 15 * 60);
+  const auth = await getAuthenticatedUser();
+  if (!auth.configured) {
+    return NextResponse.json({ error: "Sign-in is not configured." }, { status: 503, headers: noStoreHeaders() });
+  }
+  if (!auth.user) {
+    return NextResponse.json({ error: "Sign in is required to use the meeting assistant." }, { status: 401, headers: noStoreHeaders() });
+  }
+
+  const limit = await checkRateLimit(request, "assistant-chat", 12, 15 * 60, auth.user.id);
+  if (!limit.storeAvailable) {
+    return NextResponse.json(
+      { error: "Usage protection is unavailable. No assistant request was sent." },
+      { status: 503, headers: noStoreHeaders() }
+    );
+  }
   if (!limit.allowed) {
     return NextResponse.json(
       { error: "Too many assistant requests. Wait before trying again." },

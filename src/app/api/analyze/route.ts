@@ -1,5 +1,6 @@
 
 import { NextResponse } from "next/server";
+import { getAuthenticatedUser } from "@/lib/supabase/server";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import {
   analyzeSchema,
@@ -8,6 +9,7 @@ import {
 import { buildAnalysisPrompt } from "@/lib/analysis-prompt";
 import { isAnalysisPayload } from "@/lib/analysis-response";
 import { checkRateLimit } from "@/lib/rate-limit";
+import { createAnalysisPollToken, pollSecret } from "@/lib/analysis-poll-token";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
@@ -20,6 +22,11 @@ type Interaction = {
   id?: string;
   status?: string;
   error?: unknown;
+  errors?: Array<{
+    code?: string;
+    message?: string;
+    status?: string;
+  }>;
   output_text?: string;
   steps?: Array<{
     type?: string;
@@ -30,19 +37,6 @@ type Interaction = {
   }>;
 };
 
-
-function pollSecret(apiKey: string): string {
-  return process.env.GHOST_SESSION_SECRET?.trim() || apiKey;
-}
-
-function createPollToken(interactionId: string, apiKey: string): string {
-  const expires = Math.floor(Date.now() / 1000) + 30 * 60;
-  const payload = interactionId + "." + expires;
-  const signature = createHmac("sha256", pollSecret(apiKey))
-    .update(payload)
-    .digest("base64url");
-  return expires + "." + signature;
-}
 
 function validPollToken(interactionId: string, token: string, apiKey: string): boolean {
   const [rawExpires, signature, extra] = token.split(".");
@@ -116,6 +110,7 @@ function getApiKey(): string | null {
   return value || null;
 }
 
+
 function noStoreHeaders(): HeadersInit {
   return {
     "Cache-Control": "no-store, max-age=0",
@@ -124,27 +119,41 @@ function noStoreHeaders(): HeadersInit {
 }
 
 export async function POST(request: Request) {
-  const limit = checkRateLimit(
-    request,
-    "analyze",
-    12,
-    15 * 60
-  );
+  const internalSecret = process.env.STABLOCITY_GHOST_WEBHOOK_SECRET?.trim() || "";
+  const trustedInternalForward =
+    internalSecret.length >= 32 &&
+    request.headers.get("x-ghost-internal-forward") === internalSecret;
 
-  if (!limit.allowed) {
-    return NextResponse.json(
-      {
-        error:
-          "Too many analysis requests. Please wait before trying again.",
-      },
-      {
-        status: 429,
-        headers: {
-          ...noStoreHeaders(),
-          "Retry-After": String(limit.retryAfter),
-        },
-      }
-    );
+  if (!trustedInternalForward) {
+    const auth = await getAuthenticatedUser();
+    if (!auth.configured) {
+      return NextResponse.json({ error: "Sign-in is not configured." }, { status: 503, headers: noStoreHeaders() });
+    }
+    if (!auth.user) {
+      return NextResponse.json({ error: "Sign in is required to analyze a meeting." }, { status: 401, headers: noStoreHeaders() });
+    }
+
+    const limit = await checkRateLimit(request, "analyze", 12, 15 * 60, auth.user.id);
+
+    if (!limit.storeAvailable) {
+      return NextResponse.json(
+        { error: "Usage protection is unavailable. No analysis was started." },
+        { status: 503, headers: noStoreHeaders() }
+      );
+    }
+
+    if (!limit.allowed) {
+      return NextResponse.json(
+        { error: "Too many analysis requests. Please wait before trying again." },
+        {
+          status: 429,
+          headers: {
+            ...noStoreHeaders(),
+            "Retry-After": String(limit.retryAfter),
+          },
+        }
+      );
+    }
   }
 
   const apiKey = getApiKey();
@@ -281,7 +290,7 @@ export async function POST(request: Request) {
     return NextResponse.json(
       {
         interactionId: interaction.id,
-        pollToken: createPollToken(interaction.id, apiKey),
+        pollToken: createAnalysisPollToken(interaction.id, apiKey),
         status: interaction.status || "in_progress",
       },
       {
@@ -305,19 +314,18 @@ export async function POST(request: Request) {
 }
 
 export async function GET(request: Request) {
-  const limit = checkRateLimit(
-    request,
-    "analyze-poll",
-    180,
-    15 * 60
-  );
+  const limit = await checkRateLimit(request, "analyze-poll", 180, 15 * 60);
+
+  if (!limit.storeAvailable) {
+    return NextResponse.json(
+      { error: "Usage protection is unavailable. Please retry shortly." },
+      { status: 503, headers: noStoreHeaders() }
+    );
+  }
 
   if (!limit.allowed) {
     return NextResponse.json(
-      {
-        error:
-          "Too many status checks. Please wait before trying again.",
-      },
+      { error: "Too many status checks. Please wait before trying again." },
       {
         status: 429,
         headers: {
@@ -429,11 +437,21 @@ export async function GET(request: Request) {
     await deleteStoredInteraction(id, apiKey);
 
     if (interaction.status !== "completed") {
+      const providerErrors = Array.isArray(interaction.errors)
+        ? interaction.errors.slice(0, 3).map((item) => ({
+            code: typeof item?.code === "string" ? item.code.slice(0, 120) : undefined,
+            status: typeof item?.status === "string" ? item.status.slice(0, 120) : undefined,
+            message: typeof item?.message === "string" ? item.message.slice(0, 400) : undefined,
+          }))
+        : [];
       console.error("GHOST interaction ended unsuccessfully:", {
         status: interaction.status,
+        errors: providerErrors,
         error: isRecord(interaction.error)
           ? interaction.error
-          : undefined,
+          : typeof interaction.error === "string"
+            ? interaction.error.slice(0, 400)
+            : undefined,
       });
 
       return NextResponse.json(

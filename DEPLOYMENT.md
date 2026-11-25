@@ -16,10 +16,16 @@ npm install
 cp .env.example .env.local
 ```
 
-Add your Gemini API key to `.env.local`:
+Add the required values to `.env.local` from your dedicated G.H.O.S.T. Supabase project:
 
 ```bash
 GEMINI_API_KEY=your_gemini_api_key
+NEXT_PUBLIC_SUPABASE_URL=https://your-ghost-project.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-public-anon-or-publishable-key
+SUPABASE_URL=https://your-ghost-project.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=your-server-only-service-role-key
+GHOST_SESSION_SECRET=your-independent-random-secret
+STABLOCITY_GHOST_WEBHOOK_SECRET=your-shared-server-only-webhook-secret
 ```
 
 Start the development server:
@@ -37,8 +43,17 @@ Never commit `.env.local`. Never expose the API key through a `NEXT_PUBLIC_` var
 | Variable | Required | Purpose |
 |---|---:|---|
 | `GEMINI_API_KEY` | Yes | Server-side key used for audio transcription and meeting analysis. |
+| `NEXT_PUBLIC_SUPABASE_URL` | Yes | Dedicated G.H.O.S.T. Supabase project URL used by Supabase Auth. |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Yes | Supabase publishable/anon key for browser and server session handling. |
+| `SUPABASE_URL` | Yes | Same dedicated G.H.O.S.T. project URL for server-only database operations. |
+| `SUPABASE_SERVICE_ROLE_KEY` | Yes | Server-only service-role key for rate limits and internal event storage. Never expose it to browser code. |
+| `STABLOCITY_GHOST_WEBHOOK_SECRET` | Optional until STABLOCITY handoff is enabled | Shared secret (32+ characters) for HMAC-authenticated STABLOCITY transcript submissions. |
+
+The sign-in flow uses Supabase passwordless email links. In Supabase Authentication settings, enable email OTP/magic links and add the exact callback URLs for the production domain, the intended Vercel preview domain, and local development (for example `https://g-h-o-s-t-drab.vercel.app/auth/callback` and `http://localhost:3000/auth/callback`). Do not add broad wildcard redirect URLs.
 
 The current application does not use the old OpenAI environment variables.
+
+**Gemini free-tier data warning:** audio and transcripts submitted to G.H.O.S.T. are sent to Google's Gemini API for transcription and analysis. Google's current Gemini Developer API pricing documentation states that free-tier content is used to improve Google products. Use synthetic meeting data for free-tier testing. Do not submit confidential customer, employee, legal, financial or commercially sensitive meetings through the free tier unless all required participants have been informed, the customer has reviewed Google's applicable terms and the customer has explicitly approved that transfer. Do not describe the free tier as zero-retention or as excluded from provider model improvement. See https://ai.google.dev/gemini-api/docs/pricing/.
 
 ## AI services
 
@@ -53,20 +68,23 @@ The analysis endpoint starts a background interaction. The browser then polls th
 
 A successful deployment does not by itself prove that the configured API key, model access, quotas, or billing are working. Test both transcription and transcript analysis after deployment.
 
+The development branch adds a private `POST /api/internal/meetings/analyze` endpoint for transcript submissions from STABLOCITY. It verifies an HMAC-SHA256 signature over the exact JSON body, timestamp and event ID, then returns the normal G.H.O.S.T. analysis task ID and poll token. The branch also includes a Supabase event ledger and an atomic shared rate-limit function. Before enabling the APIs, apply both SQL migrations in `supabase/migrations/` to the existing G.H.O.S.T. Supabase project and configure `SUPABASE_URL` plus the server-only `SUPABASE_SERVICE_ROLE_KEY` in Vercel. The public analysis and transcription routes fail closed if the shared quota store is unavailable; they do not fall back to process-local limits. Configure `STABLOCITY_GHOST_WEBHOOK_SECRET` and the matching `GHOST_WEBHOOK_SECRET` on STABLOCITY. Never expose these secrets to browser code. The bridge is not itself connected to Meet event subscriptions or Pub/Sub.
+
 ## Vercel deployment
 
 1. Open the G.H.O.S.T. project in Vercel.
 2. Open Project Settings.
 3. Open Environment Variables.
-4. Add `GEMINI_API_KEY`.
-5. Apply it to the Production environment.
-6. Confirm the value is correct.
-7. Redeploy after changing the environment variable.
-8. Wait for the deployment to report Ready.
-9. Open the production URL over HTTPS.
-10. Complete the user-side tests in the launch checklist.
+4. Add `GEMINI_API_KEY`, `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `GHOST_SESSION_SECRET` and `STABLOCITY_GHOST_WEBHOOK_SECRET` only in the environments where each integration is enabled.
+5. Apply the SQL migrations in `supabase/migrations/` to the dedicated G.H.O.S.T. Supabase project.
+6. Configure the Supabase Auth email provider and exact redirect URLs.
+7. Keep the service-role and webhook secrets server-only.
+8. Redeploy after changing environment variables.
+9. Wait for the deployment to report Ready.
+10. Test sign-in, sign-out, API denial without a session, and successful authenticated requests.
+11. Open the production URL over HTTPS and complete the remaining launch checklist.
 
-Keep deployment protection enabled during the initial test period.
+Keep deployment protection enabled during the initial test period. **Current project check (2026-11-22):** password, SSO and trusted-IP protection are disabled in the Vercel project. Treat branch preview URLs as publicly reachable; do not share them with customers or place production secrets in Preview environment scope. The public production domain remains on the `main` branch. If private preview testing is required, enable Preview-only protection before sharing preview URLs.
 
 ## Browser recording requirements
 
@@ -95,20 +113,31 @@ Do not describe the service as zero-retention, encrypted cloud storage, or compl
 
 Users must obtain all required participant consent and must not submit confidential conversations unless they have permission and have reviewed the relevant provider terms.
 
+## Authentication and access control
+
+- The app pages require a verified Supabase Auth session.
+- The public analysis, transcription and meeting-assistant APIs require a verified signed-in user.
+- Analysis, transcription and assistant quotas include an HMAC-hashed user identifier as well as hashed IP/device buckets.
+- The private STABLOCITY webhook remains separate and requires its own HMAC signature over the exact request body, event ID and timestamp.
+- The analysis polling endpoint uses a short-lived bearer capability bound to one Gemini interaction ID. Treat that token as a secret.
+- Meeting history remains in browser local storage. Authentication does not yet create cloud sync, shared workspaces, team roles, or server-side meeting ownership.
+
+The Supabase service-role key is used only by server-side code for the private rate-limit and internal-event operations. It must never be included in browser bundles or environment variables prefixed with `NEXT_PUBLIC_`.
+
 ## Security and launch boundary
 
 The current application is an early MVP.
 
 Important limitations:
 
-- API routes do not currently require user authentication.
-- The current rate limiter uses process memory and is not a reliable distributed abuse-control system.
-- Anyone who can reach an unprotected deployment may be able to call the AI endpoints and generate API usage.
-- There is no account system, user-level quota, payment enforcement, or team access control.
+- The candidate adds Supabase email-link authentication and verified-session checks for app pages and public AI endpoints. It is not active until the Supabase public URL/key, server-only service-role key and email redirect configuration are supplied and verified.
+- Shared atomic Supabase quotas enforce hashed IP/device/user buckets; this is a cost-control layer, not proof against distributed abuse or VPN rotation.
+- If Supabase is missing or unavailable, public AI requests fail closed before provider work begins.
+- Meeting history remains browser-local. There is no cloud meeting history, workspace isolation, team-role model, payment enforcement or per-plan entitlement system.
 
 For initial testing, keep the Vercel deployment protected and share access only with intended testers.
 
-Do not expose the application to unrestricted public traffic until authentication or an effective access-control layer and reliable usage limits are in place.
+Keep Vercel deployment protection enabled during integration testing. Do not expose the application to unrestricted public traffic until the Supabase migrations are applied, deployed quota enforcement is verified, and an additional access-control or anti-abuse gate is selected for the public-free product.
 
 ## Production verification
 
@@ -146,24 +175,26 @@ A rollback does not restore browser local storage that a user has cleared or los
 
 ## Current release scope
 
-The initial release is limited to:
+The current candidate includes:
 
-- Browser-based audio capture
+- Supabase passwordless email-link sign-in and protected application/API routes, once the required Supabase environment variables, migrations and Auth redirect settings are configured
+- Browser-based audio capture and transcript import
 - Transcript review and editing
 - AI-generated Meeting Blueprints
 - Saved browser-local meeting history
 - Copy and Markdown export
 - Spoken recap where browser speech synthesis is supported
+- A private HMAC-authenticated endpoint for STABLOCITY to submit a transcript for analysis
 
-The following are not currently included:
+The following are not included or are not verified in this release:
 
-- User accounts
-- Cloud-synced meeting history
-- Team workspaces
-- Automatic meeting-platform joining
-- Calendar or CRM integrations
+- Cloud-synced meeting history or cross-device recovery
+- Team workspaces, shared meeting records or team-role permissions
+- Automatic joining of Google Meet or other meeting platforms
+- Automatic Meet event subscriptions or Pub/Sub ingestion by G.H.O.S.T. itself
+- Full two-way CRM synchronization or general-purpose Calendar integration
 - Email sending
 - Task reminders or completion tracking
-- Subscription billing
+- Subscription billing or per-plan entitlements
 
-Do not advertise unavailable capabilities as current product features.
+Authentication does not make browser-local meeting history cloud-backed. The STABLOCITY endpoint accepts signed transcript submissions; it does not make G.H.O.S.T. an automatic meeting bot. Do not advertise unavailable or unverified capabilities as current product features.

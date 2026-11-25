@@ -1,5 +1,6 @@
 
 import { NextResponse } from "next/server";
+import { getAuthenticatedUser } from "@/lib/supabase/server";
 import { checkRateLimit } from "@/lib/rate-limit";
 import {
   MAX_AUDIO_SIZE,
@@ -63,12 +64,34 @@ export async function POST(request: Request) {
   let stage = "request";
   let uploadedFileName: string | undefined;
 
-  const limit = checkRateLimit(
+  const auth = await getAuthenticatedUser();
+  if (!auth.configured) {
+    return NextResponse.json(
+      { error: "Sign-in is not configured." },
+      { status: 503, headers: { "Cache-Control": "no-store" } }
+    );
+  }
+  if (!auth.user) {
+    return NextResponse.json(
+      { error: "Sign in is required to transcribe a recording." },
+      { status: 401, headers: { "Cache-Control": "no-store" } }
+    );
+  }
+
+  const limit = await checkRateLimit(
     request,
     "transcribe",
     6,
-    15 * 60
+    15 * 60,
+    auth.user.id
   );
+
+  if (!limit.storeAvailable) {
+    return NextResponse.json(
+      { error: "Usage protection is unavailable. No audio was uploaded." },
+      { status: 503, headers: { "Cache-Control": "no-store" } }
+    );
+  }
 
   if (!limit.allowed) {
     return NextResponse.json(
