@@ -666,8 +666,8 @@ export default function GhostApp() {
       destination.search = "";
       destination.hash = "";
       window.open(destination.toString(), "_blank", "noopener,noreferrer");
-      exportMeeting(item, false);
-      setNotice("Meeting Blueprint downloaded. In the STABLOCITY tab, choose the workspace and optional contact, company or deal, then confirm the import.");
+      exportMeetingCsv(item);
+      setNotice("Structured CSV downloaded. In the STABLOCITY tab, choose the workspace and optional contact, company or deal, then confirm the import.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "The STABLOCITY address is invalid.");
     }
