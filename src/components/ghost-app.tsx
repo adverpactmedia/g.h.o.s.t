@@ -12,6 +12,7 @@ import {
   CircleHelp,
   Copy,
   FileText,
+  FileSpreadsheet,
   Mic,
   Pause,
   Play,
@@ -46,6 +47,7 @@ import {
 import BlueprintIntelligence from "@/components/blueprint-intelligence";
 import MeetingAssistant from "@/components/meeting-assistant";
 import { buildBlueprintMarkdown } from "@/lib/blueprint-export";
+import { buildBlueprintCsv } from "@/lib/blueprint-csv-export";
 
 const STORE = "ghost-voice-meetings-v1";
 const OUTPUT_LANGUAGE_STORE = "ghost-output-language-v1";
@@ -633,6 +635,21 @@ export default function GhostApp() {
     window.setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 
+  function exportMeetingCsv(item: MeetingResult) {
+    const csv = buildBlueprintCsv(item);
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+
+    link.href = url;
+    link.download = `${safeFilename(item.title)}-stablocity.csv`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
   function transferToStablocity(item: MeetingResult) {
     const raw = window.prompt(
       "Enter the address of your STABLOCITY deployment. The Meeting Blueprint will be downloaded for you to import.",
@@ -1077,6 +1094,10 @@ export default function GhostApp() {
                   <button className="secondary-button" onClick={() => exportMeeting(active, true)}>
                     <ArrowDownToLine size={15} />
                     Blueprint + Transcript (.md)
+                  </button>
+                  <button className="secondary-button" onClick={() => exportMeetingCsv(active)}>
+                    <FileSpreadsheet size={15} />
+                    Structured STABLOCITY (.csv)
                   </button>
                   <button className="secondary-button" onClick={() => transferToStablocity(active)}>
                     <ArrowDownToLine size={15} />
