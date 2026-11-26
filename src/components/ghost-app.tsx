@@ -79,8 +79,11 @@ function openFollowUpEmail(draft: { subject: string; body: string }) {
     window.alert("Enter a valid email address, then try again.");
     return;
   }
-  const query = new URLSearchParams({ subject: draft.subject, body: draft.body });
-  window.location.href = "mailto:" + address + "?" + query.toString();
+  // RFC 6068 mailto values use percent-encoding; URLSearchParams uses "+" for spaces,
+  // which some Android mail handlers display literally instead of decoding.
+  const subject = encodeURIComponent(draft.subject);
+  const body = encodeURIComponent(draft.body).replace(/%0A/g, "%0D%0A");
+  window.location.href = `mailto:${address}?subject=${subject}&body=${body}`;
 }
 
 export default function GhostApp() {
