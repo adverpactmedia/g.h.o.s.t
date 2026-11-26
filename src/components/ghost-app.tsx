@@ -694,14 +694,22 @@ export default function GhostApp() {
       return;
     }
 
-    // Open synchronously from the user's tap to avoid mobile popup blockers.
+    // Start the clipboard write while this tab still has the user's activation,
+    // then open the destination synchronously before awaiting it.
+    let clipboardWrite: Promise<void>;
+    try {
+      clipboardWrite = navigator.clipboard.writeText(buildBlueprintCsv(item));
+    } catch {
+      clipboardWrite = Promise.reject(new Error("Clipboard access is unavailable."));
+    }
     const tab = window.open("about:blank", "_blank");
     if (!tab) {
       setError("Allow pop-ups for G.H.O.S.T., then try Transfer again.");
       return;
     }
+    tab.opener = null;
     try {
-      await navigator.clipboard.writeText(buildBlueprintCsv(item));
+      await clipboardWrite;
       tab.location.replace(destination.toString());
       setNotice("Meeting copied. In STABLOCITY, tap “Paste copied Blueprint”, choose the workspace, then review and confirm the import.");
     } catch {
