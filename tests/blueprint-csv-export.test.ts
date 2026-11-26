@@ -88,7 +88,7 @@ describe("G.H.O.S.T. structured CSV export", () => {
       actionItems: [{ ...meeting.actionItems[0], task: "@SUM(1,2)" }],
     };
     const csv = buildBlueprintCsv(hostile);
-    expect(csv).toContain('"\'=HYPERLINK(""https://bad.example"")"');
-    expect(csv).toContain('"'@SUM(1,2)"');
+    expect(csv).toContain(`"'=HYPERLINK(""https://bad.example"")"`);
+    expect(csv).toContain(`"'@SUM(1,2)"`);
   });
 });
