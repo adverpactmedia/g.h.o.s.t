@@ -52,6 +52,7 @@ import { buildBlueprintCsv } from "@/lib/blueprint-csv-export";
 const STORE = "ghost-voice-meetings-v1";
 const OUTPUT_LANGUAGE_STORE = "ghost-output-language-v1";
 const MAX_TRANSCRIPT_LENGTH = 120_000;
+const STABLOCITY_URL_STORE = "ghost-stablocity-url-v1";
 
 type CaptureMode = "microphone" | "tab";
 type Status = "idle" | "recording" | "paused" | "processing" | "error";
@@ -653,26 +654,60 @@ export default function GhostApp() {
     window.setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 
-  function transferToStablocity(item: MeetingResult) {
+  function configureStablocityDestination() {
+    let saved = "";
+    try { saved = localStorage.getItem(STABLOCITY_URL_STORE) || ""; } catch {}
     const raw = window.prompt(
-      "Enter the address of your STABLOCITY deployment. The Meeting Blueprint will be downloaded for you to import.",
-      "https://your-stablocity-domain.example"
+      "Enter your STABLOCITY deployment address. It is saved only in this browser.",
+      saved || "https://stablocity-crm-phase12-acceptance.onrender.com"
     );
     if (!raw?.trim()) return;
-
     try {
       const destination = new URL(raw.trim());
       if (destination.protocol !== "https:" && destination.hostname !== "localhost") {
         throw new Error("Use your STABLOCITY HTTPS address.");
       }
+      localStorage.setItem(STABLOCITY_URL_STORE, destination.origin);
+      setNotice("STABLOCITY destination saved on this device.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "The STABLOCITY address is invalid.");
+    }
+  }
+
+  async function transferToStablocity(item: MeetingResult) {
+    let saved = "";
+    try { saved = localStorage.getItem(STABLOCITY_URL_STORE) || ""; } catch {}
+    if (!saved) {
+      configureStablocityDestination();
+      try { saved = localStorage.getItem(STABLOCITY_URL_STORE) || ""; } catch {}
+      if (!saved) return;
+    }
+
+    let destination: URL;
+    try {
+      destination = new URL(saved);
       destination.pathname = "/ghost-import";
       destination.search = "";
       destination.hash = "";
-      window.open(destination.toString(), "_blank", "noopener,noreferrer");
+    } catch {
+      setError("The saved STABLOCITY address is invalid. Set it again.");
+      return;
+    }
+
+    // Open synchronously from the user's tap to avoid mobile popup blockers.
+    const tab = window.open("about:blank", "_blank");
+    if (!tab) {
+      setError("Allow pop-ups for G.H.O.S.T., then try Transfer again.");
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(buildBlueprintCsv(item));
+      tab.location.replace(destination.toString());
+      setNotice("Meeting copied. In STABLOCITY, tap “Paste copied Blueprint”, choose the workspace, then review and confirm the import.");
+    } catch {
+      tab.location.replace(destination.toString());
       exportMeetingCsv(item);
-      setNotice("Structured CSV downloaded. In the STABLOCITY tab, choose the workspace and optional contact, company or deal, then confirm the import.");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "The STABLOCITY address is invalid.");
+      setNotice("Clipboard access was blocked. The CSV was downloaded instead; select it on the STABLOCITY import page.");
     }
   }
 
@@ -1101,6 +1136,9 @@ export default function GhostApp() {
                   <button className="secondary-button" onClick={() => exportMeetingCsv(active)}>
                     <FileSpreadsheet size={15} />
                     Structured STABLOCITY (.csv)
+                  </button>
+                  <button className="secondary-button" onClick={configureStablocityDestination}>
+                    Set STABLOCITY destination
                   </button>
                   <button className="secondary-button" onClick={() => transferToStablocity(active)}>
                     <ArrowDownToLine size={15} />
