@@ -203,7 +203,7 @@ export function makeSpokenSummary(
         .join(". ")}.`
     : "No clear action items were identified.";
 
-  return [summary, decisions, actions].filter(Boolean).join(" ");
+  return [summary ? `${summary}.` : "", decisions, actions].filter(Boolean).join(" ");
 }
 
 function cleanSentence(value: string): string {
