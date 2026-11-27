@@ -5,6 +5,14 @@ Status: sender and receiver implementation committed and deployed to the STABLOC
 ## User experience
 A G.H.O.S.T. user reviews a completed Meeting Blueprint and exports a Markdown file. In their own STABLOCITY deployment they open the G.H.O.S.T. import workflow, upload the file, select an industry workspace, and optionally attach it to a contact, company or deal. A workspace-level meeting record without an attachment is valid. The user previews the destination and confirms the import.
 
+## Structured CSV transfer
+
+G.H.O.S.T. now also provides a UTF-8 RFC 4180 CSV export alongside both Markdown exports. The structured file contains one meeting row plus separate decision, action, revision and follow-up rows. It includes a stable meeting identifier, schema version, source version, evidence and confidence fields where available. Transcript content is deliberately excluded from CSV exports.
+
+The STABLOCITY `/ghost-import` page accepts either the Markdown Blueprint or this CSV schema. CSV is validated in the browser and converted into a readable meeting Blueprint before the existing authenticated, workspace-scoped import endpoint stores it. The imported record retains its decision and action registers. This import does not automatically create CRM tasks or send follow-up messages; those remain explicit owner-controlled actions in STABLOCITY.
+
+The CSV importer validates the source application, schema version, meeting identity and single-meeting consistency. It handles quoted commas, escaped quotes and embedded newlines. Spreadsheet formula-leading text is neutralised on export.
+
 ## Required payload
 - Format identifier: GHOST-STABLOCITY-MEETING
 - Schema version: 1

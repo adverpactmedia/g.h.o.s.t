@@ -12,6 +12,7 @@ import {
   CircleHelp,
   Copy,
   FileText,
+  FileSpreadsheet,
   Mic,
   Pause,
   Play,
@@ -46,10 +47,12 @@ import {
 import BlueprintIntelligence from "@/components/blueprint-intelligence";
 import MeetingAssistant from "@/components/meeting-assistant";
 import { buildBlueprintMarkdown } from "@/lib/blueprint-export";
+import { buildBlueprintCsv } from "@/lib/blueprint-csv-export";
 
 const STORE = "ghost-voice-meetings-v1";
 const OUTPUT_LANGUAGE_STORE = "ghost-output-language-v1";
 const MAX_TRANSCRIPT_LENGTH = 120_000;
+const STABLOCITY_URL_STORE = "ghost-stablocity-url-v1";
 
 type CaptureMode = "microphone" | "tab";
 type Status = "idle" | "recording" | "paused" | "processing" | "error";
@@ -77,8 +80,11 @@ function openFollowUpEmail(draft: { subject: string; body: string }) {
     window.alert("Enter a valid email address, then try again.");
     return;
   }
-  const query = new URLSearchParams({ subject: draft.subject, body: draft.body });
-  window.location.href = "mailto:" + address + "?" + query.toString();
+  // RFC 6068 mailto values use percent-encoding; URLSearchParams uses "+" for spaces,
+  // which some Android mail handlers display literally instead of decoding.
+  const subject = encodeURIComponent(draft.subject);
+  const body = encodeURIComponent(draft.body).replace(/%0A/g, "%0D%0A");
+  window.location.href = `mailto:${address}?subject=${subject}&body=${body}`;
 }
 
 export default function GhostApp() {
@@ -633,26 +639,77 @@ export default function GhostApp() {
     window.setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 
-  function transferToStablocity(item: MeetingResult) {
+  function exportMeetingCsv(item: MeetingResult) {
+    const csv = buildBlueprintCsv(item);
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+
+    link.href = url;
+    link.download = `${safeFilename(item.title)}-stablocity.csv`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
+  function configureStablocityDestination() {
+    let saved = "";
+    try { saved = localStorage.getItem(STABLOCITY_URL_STORE) || ""; } catch {}
     const raw = window.prompt(
-      "Enter the address of your STABLOCITY deployment. The Meeting Blueprint will be downloaded for you to import.",
-      "https://your-stablocity-domain.example"
+      "Enter your STABLOCITY deployment address. It is saved only in this browser.",
+      saved || "https://stablocity-crm-phase12-acceptance.onrender.com"
     );
     if (!raw?.trim()) return;
-
     try {
       const destination = new URL(raw.trim());
       if (destination.protocol !== "https:" && destination.hostname !== "localhost") {
         throw new Error("Use your STABLOCITY HTTPS address.");
       }
+      localStorage.setItem(STABLOCITY_URL_STORE, destination.origin);
+      setNotice("STABLOCITY destination saved on this device.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "The STABLOCITY address is invalid.");
+    }
+  }
+
+  async function transferToStablocity(item: MeetingResult) {
+    let saved = "";
+    try { saved = localStorage.getItem(STABLOCITY_URL_STORE) || ""; } catch {}
+    if (!saved) {
+      configureStablocityDestination();
+      try { saved = localStorage.getItem(STABLOCITY_URL_STORE) || ""; } catch {}
+      if (!saved) return;
+    }
+
+    let destination: URL;
+    try {
+      destination = new URL(saved);
       destination.pathname = "/ghost-import";
       destination.search = "";
       destination.hash = "";
-      window.open(destination.toString(), "_blank", "noopener,noreferrer");
-      exportMeeting(item, false);
-      setNotice("Meeting Blueprint downloaded. In the STABLOCITY tab, choose the workspace and optional contact, company or deal, then confirm the import.");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "The STABLOCITY address is invalid.");
+    } catch {
+      setError("The saved STABLOCITY address is invalid. Set it again.");
+      return;
+    }
+
+    // Request clipboard access directly from the user's tap, then navigate this
+    // tab. Same-tab navigation avoids Android popup blockers and extra-tab confusion.
+    let clipboardWrite: Promise<void>;
+    try {
+      if (!navigator.clipboard?.writeText) throw new Error("Clipboard access is unavailable.");
+      clipboardWrite = navigator.clipboard.writeText(buildBlueprintCsv(item));
+    } catch {
+      clipboardWrite = Promise.reject(new Error("Clipboard access is unavailable."));
+    }
+
+    try {
+      await clipboardWrite;
+      window.location.assign(destination.toString());
+    } catch {
+      exportMeetingCsv(item);
+      setNotice("Clipboard access was blocked. The CSV was downloaded. Open STABLOCITY and select that file on the import page.");
     }
   }
 
@@ -1077,6 +1134,13 @@ export default function GhostApp() {
                   <button className="secondary-button" onClick={() => exportMeeting(active, true)}>
                     <ArrowDownToLine size={15} />
                     Blueprint + Transcript (.md)
+                  </button>
+                  <button className="secondary-button" onClick={() => exportMeetingCsv(active)}>
+                    <FileSpreadsheet size={15} />
+                    Structured STABLOCITY (.csv)
+                  </button>
+                  <button className="secondary-button" onClick={configureStablocityDestination}>
+                    Set STABLOCITY destination
                   </button>
                   <button className="secondary-button" onClick={() => transferToStablocity(active)}>
                     <ArrowDownToLine size={15} />

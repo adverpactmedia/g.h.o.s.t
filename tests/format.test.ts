@@ -5,7 +5,7 @@ describe("meeting formatting", () => {
     const text = makeSpokenSummary({ summary: "The launch moves to Friday.", decisions: ["Ship the revised page"], actionItems: [{ task: "Send final copy", owner: "Mia", due: "Friday" }] });
     expect(text).toContain("The launch moves to Friday.");
     expect(text).toContain("Decisions: Ship the revised page.");
-    expect(text).toContain("Send final copy, due Friday");
+    expect(text).toContain("Send final copy, assigned to Mia, due Friday");
   });
   it("handles missing decisions and actions without inventing them", () => {
     expect(makeSpokenSummary({ summary: "A short update.", decisions: [], actionItems: [] })).toContain("No firm decisions");
