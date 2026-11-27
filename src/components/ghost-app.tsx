@@ -694,28 +694,22 @@ export default function GhostApp() {
       return;
     }
 
-    // Start the clipboard write while this tab still has the user's activation,
-    // then open the destination synchronously before awaiting it.
+    // Request clipboard access directly from the user's tap, then navigate this
+    // tab. Same-tab navigation avoids Android popup blockers and extra-tab confusion.
     let clipboardWrite: Promise<void>;
     try {
+      if (!navigator.clipboard?.writeText) throw new Error("Clipboard access is unavailable.");
       clipboardWrite = navigator.clipboard.writeText(buildBlueprintCsv(item));
     } catch {
       clipboardWrite = Promise.reject(new Error("Clipboard access is unavailable."));
     }
-    const tab = window.open("about:blank", "_blank");
-    if (!tab) {
-      setError("Allow pop-ups for G.H.O.S.T., then try Transfer again.");
-      return;
-    }
-    tab.opener = null;
+
     try {
       await clipboardWrite;
-      tab.location.replace(destination.toString());
-      setNotice("Meeting copied. In STABLOCITY, tap “Paste copied Blueprint”, choose the workspace, then review and confirm the import.");
+      window.location.assign(destination.toString());
     } catch {
-      tab.location.replace(destination.toString());
       exportMeetingCsv(item);
-      setNotice("Clipboard access was blocked. The CSV was downloaded instead; select it on the STABLOCITY import page.");
+      setNotice("Clipboard access was blocked. The CSV was downloaded. Open STABLOCITY and select that file on the import page.");
     }
   }
 
